@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1 class="">{% block title %} Manage video sources {% endblock %}</h1>
+<div class="card mb-4 mt-4">
+    <div class="card-body">
+        <form action="{{ url_for('sources.index') }}" method="GET">
+            <div class="input-group">
+                <div class="input-group-prepend">
+                    <span class="input-group-text" id="basic-addon1">
+                        <i class="fas fa-search"></i>
+                    </span>
+                </div>
+                <input type="text" name="search_entry" class="form-control" placeholder="Source name"
+                    aria-label="Username" aria-describedby="basic-addon1" onchange="this.form.submit()"
+                    value="{{ search_entry }}">
+            </div>
+            <div class="custom-control custom-checkbox text-left mt-2">
+                <input type="checkbox" id="show_finishedCheckbox" name="show_finished" class="custom-control-input"
+                    onchange="this.form.submit()" {% if show_finished=='on' %} checked {% endif %}>
+                <label class="custom-control-label" for="show_finishedCheckbox">Show finished</label>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="card">
+    <div class="card-body p-0 m-0">
+        <table class="table object-list m-0" style="width: 100%;">
+            <tbody>
+                {% for source in sources %}
+                <tr onclick="window.location.href='{{ url_for('sources.source', id=source['id']) }}'">
+                    <td>{{ source.name }}</td>
+                    <td class="status">
+                        <span class="{{ source.status.lower() }}">{{ source.status }}</span>
+                    </td>
+                    <td>
+                        {% if source.status != 'Finished' %}
+                        <form action="{{ url_for('sources.finish', id=source['id']) }}" method="POST">
+                            <button type="submit" class="btn-icon">
+                                <i class="fa-solid fa-box-archive"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if source.status == 'Active' %}
+                        <form action="{{ url_for('sources.pause', id=source['id'])}}" method="POST">
+                            <button type="submit" class="btn-icon">
+                                <i class="fa-solid fa-pause"></i>
+                            </button>
+                        </form>
+                        {% elif source.status == 'Paused' %}
+                        <form action="{{ url_for('sources.start', id=source['id']) }}" method="POST">
+                            <button type="submit" class="btn-icon">
+                                <i class="fa-solid fa-play"></i>
+                            </button>
+                        </form>
+                        {% elif source.status == 'Error' %}
+                        <form action="{{ url_for('sources.start', id=source['id']) }}" method="POST">
+                            <button type="submit" class="btn-icon">
+                                <i class="fa-solid fa-play"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form action="{{ url_for('sources.delete', id=source['id']) }}" method="POST">
+                            <button type="submit" class="btn-icon">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr>
+                    <td colspan="5" class="td-btn">
+                        <button type="button" class="btn-icon" data-toggle="modal" data-target="#addSourceModal">
+                            <i class="fa-solid fa-plus m-3"></i>
+                        </button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="addSourceModal" tabindex="-1" role="dialog" aria-labelledby="addSourceModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addSourceModalLabel">New source</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form action="{{ url_for('sources.add') }}" method="POST">
+                    <div class="form-group">
+                        <input class="form-control form-control-lg" type="text" name="name" placeholder="Name"
+                            autofocus="">
+                    </div>
+                    <div class="form-group">
+                        <input class="form-control form-control-lg" type="text" name="url" placeholder="Url">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">Add</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
