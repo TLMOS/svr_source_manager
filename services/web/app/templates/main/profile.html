@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card">
+    {% if frame %}
+    <div class="card-header">
+        <h5 class="card-title">{% block title %} {{current_user.name}} {% endblock %}</h5>
+    </div>
+    {% endif %}
+    <div class="card-body">
+        <b>Name:</b> {{ current_user.name }}<br>
+        <b>Max sources:</b> {{ current_user.max_sources }}<br>
+        <b>Role:</b>
+        {% if current_user.role == 1 %}
+        Admin
+        {% else %}
+        User
+        {% endif %}
+        <br>
+    </div>
+</div>
+{% endblock %}

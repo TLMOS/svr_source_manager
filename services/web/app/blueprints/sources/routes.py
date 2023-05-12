@@ -4,7 +4,7 @@ from urllib.error import HTTPError
 import base64
 
 from flask import request, session
-from flask import current_app
+from flask_login import login_required
 
 from app.blueprints.sources import bp
 from app import api_client
@@ -12,7 +12,13 @@ from app.schemas import SourceStatus
 from app.utils import float_to_color, action, render
 
 
-@bp.route('/', methods=['GET'])
+@bp.before_request
+@login_required
+def before_request():
+    pass
+
+
+@bp.route('/', methods=['GET', 'POST'])
 @render(template='sources/index.html', endpoint='sources.index')
 def index():
     search_entry = request.args.get('search_entry', '')
@@ -25,7 +31,8 @@ def index():
         ]
     if search_entry:
         sources = [s for s in sources if search_entry in s.name]
-    sources.sort(key=lambda s: s.status_code != SourceStatus.ERROR)
+    sources.sort(key=lambda s: s.name)
+    sources.sort(key=lambda s: s.status_code != SourceStatus.ACTIVE)
 
     session['sources.index'] = {
         'search_entry': search_entry,
@@ -36,7 +43,7 @@ def index():
     }
 
 
-@bp.route('/add', methods=('POST',))
+@bp.route('/add', methods=['POST'])
 @action(endpoint='sources.index')
 def add():
     name = request.form['name']
@@ -44,51 +51,51 @@ def add():
     api_client.sources.create_from_url(name, url)
 
 
-@bp.route('/start/<int:id>', methods=('POST',))
+@bp.route('/start/<int:id>', methods=['POST'])
 @action(endpoint='sources.index')
 def start(id: int):
     api_client.sources.start(id)
 
 
-@bp.route('/pause/<int:id>', methods=('POST',))
+@bp.route('/pause/<int:id>', methods=['POST'])
 @action(endpoint='sources.index')
 def pause(id: int):
     api_client.sources.pause(id)
 
 
-@bp.route('/finish/<int:id>', methods=('POST',))
+@bp.route('/finish/<int:id>', methods=['POST'])
 @action(endpoint='sources.index')
 def finish(id: int):
     api_client.sources.finish(id)
 
 
-@bp.route('/delete/<int:id>', methods=('POST',))
+@bp.route('/delete/<int:id>', methods=['POST'])
 @action(endpoint='sources.index')
 def delete(id: int):
     api_client.sources.delete(id)
 
 
-@bp.route('/<int:id>')
+@bp.route('/<int:id>', methods=['GET'])
 @render(template='sources/source.html')
 def source(id: int):
     source = api_client.sources.get(id)
 
     try:
-        frame = api_client.videos.get_last_frame(id)
+        frame = api_client.sources.get_frame(id)
         frame = base64.b64encode(frame).decode('utf-8')
     except HTTPError:
         frame = None
 
-    print(current_app.config)
-
-    intervals = api_client.videos.get_time_coverage(id)
+    intervals = api_client.sources.get_time_coverage(id)
     day_coverage = {}
     for (start, end) in intervals:
         dt = datetime.fromtimestamp(start)
         day_coverage[dt.date()] = day_coverage.get(dt.date(), 0) + end - start
     if day_coverage:
         for day, count in day_coverage.items():
-            day_coverage[day] = count / 24 / 60 / 60
+            cov = count / 24 / 60 / 60
+            cov = cov * 0.8 + 0.2
+            day_coverage[day] = cov
 
     calendar = []
     row = [{'day': None, 'color': None} for _ in range(7)]

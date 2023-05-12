@@ -69,6 +69,7 @@ class VideoCapture(SourceCapture):
         self._frames_read = 0
 
     def __enter__(self):
+        print(self.url)
         self._cap = cv2.VideoCapture(self.url)
         if self._cap is None or not self._cap.isOpened():
             raise ValueError('Can not open video capture')
@@ -112,6 +113,7 @@ class VideoCapture(SourceCapture):
         ret, frame = self._cap.read()
         attempt = 1
         while not ret and attempt < max_retries:
+            time.sleep(0.1)
             ret, frame = self._cap.read()
             attempt += 1
         if ret:
@@ -227,75 +229,78 @@ def add_timestamp(frame: np.ndarray, ts: float) -> np.ndarray:
     return frame
 
 
-async def process_source(source: models.Source):
-    """
-    Get frames from source and write them into video chunks.
-    Create video files and database records.
-    Suppoused to be run as a background task.
-    """
-    save_dir = settings.chunks_dir / str(source.id)
-    save_dir.mkdir(parents=True, exist_ok=True)
-    fps, duration = settings.chunk_fps, settings.chunk_duration
-    number_of_frames = int(fps * duration)
-    chunks_count = len(list(save_dir.glob('*.mp4')))
-    status, status_msg = SourceStatus.FINISHED, None
-    try:
-        with open_source(source.url) as cap:
-            if cap.source_fps and cap.source_fps > fps:
-                skip_frames = int(cap.source_fps / fps) - 1
-            else:
-                skip_frames = 0
-            while cap.has_next():
-                chunk_path = save_dir / f'{chunks_count}.mp4'
-                async with ChunkWriter(source.id, chunk_path) as writer:
-                    for _ in range(number_of_frames):
-                        if not cap.has_next():
-                            break
-                        read_time = time.time()
-                        frame = cap.read()
-                        if skip_frames:  # Skip frames to match CHUNK_FPS
-                            cap.skip(skip_frames)
-                        if settings.draw_timestamp:
-                            frame = add_timestamp(frame, read_time)
-                        writer.write(frame)
-                        delay = 1 / fps - (time.time() - read_time)
-                        if delay > 0:
-                            await asyncio.sleep(delay)
-                    chunks_count += 1
-    except asyncio.CancelledError:
-        # Source processing was cancelled by unknown reason,
-        # so status should be updated from outside
-        return
-    except Exception as e:
-        status = SourceStatus.ERROR
-        status_msg = str(e)
-    # Source processing either finished or failed, so status should be updated
-    # from inside
-    async with async_session_factory() as session:
-        await crud.sources.update_status(
-            session=session,
-            id=source.id,
-            status=status,
-            status_msg=status_msg
-        )
-
-
 class SourceProcessor:
     """Manages background tasks for processing sources."""
 
     def __init__(self):
         self.tasks = {}
+        self.frames = {}  # Last frame for each source to be shown on the UI
+
+    async def process(self, source: models.Source):
+        """
+        Get frames from source and write them into video chunks.
+        Create video files and database records.
+        Suppoused to be run as a background task.
+        """
+        save_dir = settings.chunks_dir / str(source.id)
+        save_dir.mkdir(parents=True, exist_ok=True)
+        fps, duration = settings.chunk_fps, settings.chunk_duration
+        number_of_frames = int(fps * duration)
+        chunks_count = len(list(save_dir.glob('*.mp4')))
+        status, status_msg = SourceStatus.FINISHED, None
+        try:
+            with open_source(source.url) as cap:
+                if cap.source_fps and cap.source_fps > fps:
+                    skip_frames = int(cap.source_fps / fps) - 1
+                else:
+                    skip_frames = 0
+                while cap.has_next():
+                    chunk_path = save_dir / f'{chunks_count}.mp4'
+                    async with ChunkWriter(source.id, chunk_path) as writer:
+                        for _ in range(number_of_frames):
+                            if not cap.has_next():
+                                break
+                            read_time = time.time()
+                            frame = cap.read()
+                            if skip_frames:  # Skip frames to match CHUNK_FPS
+                                cap.skip(skip_frames)
+                            if settings.draw_timestamp:
+                                frame = add_timestamp(frame, read_time)
+                            writer.write(frame)
+                            self.frames[source.id] = frame  # Save last frame
+                            delay = 1 / fps - (time.time() - read_time)
+                            if delay > 0:
+                                await asyncio.sleep(delay)
+                        chunks_count += 1
+        except asyncio.CancelledError:
+            # Source processing was cancelled by unknown reason,
+            # so status should be updated from outside
+            self.tasks.pop(source.id)
+            self.frames.pop(source.id)
+            return
+        except Exception as e:
+            status = SourceStatus.ERROR
+            status_msg = str(e)
+        # Source processing either finished or failed, so status should be
+        # updated from inside
+        async with async_session_factory() as session:
+            await crud.sources.update_status(
+                session=session,
+                id=source.id,
+                status=status,
+                status_msg=status_msg
+            )
+        self.tasks.pop(source.id)
+        self.frames.pop(source.id)
 
     def add(self, source: models.Source):
         """Start processing source in background task."""
         if source.id in self.tasks:
             raise ValueError('Source is already processing')
         self.tasks[source.id] = asyncio.create_task(
-            process_source(source)
+            self.process(source)
         )
-        self.tasks[source.id].add_done_callback(
-            lambda _: self.tasks.pop(source.id)
-        )
+        self.frames[source.id] = None
 
     async def remove(self, source_id: int):
         """Stop processing source with given id."""
@@ -312,3 +317,8 @@ class SourceProcessor:
         for task in self.tasks.values():
             task.cancel()
         await asyncio.gather(*self.tasks.values())
+
+    async def get_frame(self, source_id: int):
+        """Get frame from source."""
+        if source_id in self.frames:
+            return self.frames[source_id]

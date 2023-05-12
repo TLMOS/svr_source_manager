@@ -1,8 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app import crud, schemas, security
-from app.security import RequiresAuthDep, RequiresAdminDep
-
+from app.dependencies import SessionDep
 
 router = APIRouter(
     prefix="/users",
@@ -11,24 +10,13 @@ router = APIRouter(
 
 
 @router.post(
-    '/forget',
-    summary="Logout",
-)
-async def forget(auth: RequiresAuthDep):
-    """
-    Logout.
-    """
-    user, _ = auth
-    security.forget(user.name)
-
-
-@router.post(
     "/create",
     response_model=schemas.User,
     summary="Create user",
     response_description="User created"
 )
-async def create(user_schema: schemas.UserCreate, session: RequiresAdminDep):
+async def create(session: SessionDep,
+                 user_schema: schemas.UserCreate):
     """
     Create user.
 
@@ -43,18 +31,25 @@ async def create(user_schema: schemas.UserCreate, session: RequiresAdminDep):
     return user
 
 
-@router.get(
-    "/me",
-    response_model=schemas.User,
-    summary="Get current user",
-    response_description="User"
+@router.post(
+    "/verify",
+    response_model=schemas.User | None,
+    summary="verify user credentials",
+    response_description="User if credentials are valid"
 )
-async def me(auth: RequiresAuthDep):
+async def verify(session: SessionDep,
+                 name: str,
+                 password: str):
     """
-    Get current user.
+    verify user credentials.
+
+    Parameters:
+    - **name**: user name
+    - **password**: user password
     """
-    user, _ = auth
-    return user
+    user = await crud.users.read_by_name(session, name)
+    if user and security.verify_password(password, user.password):
+        return user
 
 
 @router.get(
@@ -63,7 +58,8 @@ async def me(auth: RequiresAuthDep):
     summary="Get user",
     response_description="User"
 )
-async def get(id: int, session: RequiresAdminDep):
+async def get(session: SessionDep,
+              id: int):
     """
     Get user.
 
@@ -82,45 +78,9 @@ async def get(id: int, session: RequiresAdminDep):
     summary="Get list of all users",
     response_description="List of all users"
 )
-async def get_all(session: RequiresAdminDep):
+async def get_all(session: SessionDep):
     """Get list of all users."""
     return await crud.users.read_all(session)
-
-
-@router.put(
-    "/update/password",
-    summary="Update user password"
-)
-async def update_password(password: str, auth: RequiresAuthDep):
-    """
-    Update user password.
-
-    Parameters:
-    - **id**: user id
-    - **password**: new password
-    """
-    user, session = auth
-    password = security.get_password_hash(password)
-    await crud.users.update_password(session, user.id, password)
-
-
-@router.put(
-    "/update/max_sources",
-    summary="Update user max sources",
-)
-async def update_max_sources(id: int, max_sources: int,
-                             session: RequiresAdminDep):
-    """
-    Update user max sources.
-
-    Parameters:
-    - **id**: user id
-    - **max_sources**: new max sources
-    """
-    user = await crud.users.read(session, id)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    await crud.users.update_max_sources(session, id, max_sources)
 
 
 @router.delete(
@@ -128,7 +88,8 @@ async def update_max_sources(id: int, max_sources: int,
     response_model=schemas.User,
     summary="Delete user"
 )
-async def delete(id: int, session: RequiresAdminDep):
+async def delete(session: SessionDep,
+                 id: int):
     """
     Delete user.
 

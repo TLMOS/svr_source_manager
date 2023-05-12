@@ -33,24 +33,6 @@ async def read_by_name(session: AsyncSession, name: str) -> User:
     return result.scalars().first()
 
 
-async def update_password(session: AsyncSession, id: int, password: str
-                          ) -> User:
-    """Update user password."""
-    user = await read(session, id)
-    user.password = password
-    await session.commit()
-    return user
-
-
-async def update_max_sources(session: AsyncSession, id: int, max_sources: int
-                             ) -> User:
-    """Update user max sources."""
-    user = await read(session, id)
-    user.max_sources = max_sources
-    await session.commit()
-    return user
-
-
 async def delete(session: AsyncSession, id: int) -> User:
     """Delete user from the database."""
     user = await read(session, id)

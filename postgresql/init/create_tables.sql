@@ -4,7 +4,7 @@ CREATE TABLE "user"
   "name" VARCHAR(256) NOT NULL,
   "password" VARCHAR(256) NOT NULL,
   max_sources INT NOT NULL DEFAULT 5,
-  is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+  "role" INT NOT NULL DEFAULT 0,
   UNIQUE ("name")
 );
 
@@ -29,3 +29,16 @@ CREATE TABLE video_chunk
   FOREIGN KEY (source_id) REFERENCES source(id),
   UNIQUE (file_path)
 );
+
+CREATE INDEX CONCURRENTLY "index_user_id"
+ON "user" using btree (id);
+
+CREATE INDEX CONCURRENTLY "index_user_name"
+ON "user" using btree (name);
+
+CREATE INDEX CONCURRENTLY "index_source_id_and_user_id"
+ON source using btree (id, user_id);
+
+CREATE INDEX CONCURRENTLY "index_video_chunk_id"
+ON video_chunk using btree (id);
+

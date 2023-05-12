@@ -1,6 +1,26 @@
 from enum import IntEnum
 
 from pydantic import BaseModel
+from flask_login import UserMixin
+
+
+class UserRole(IntEnum):
+    USER = 0
+    ADMIN = 1
+
+
+class UserBase(BaseModel):
+    name: str
+    max_sources: int
+    role: UserRole
+
+
+class UserCreate(UserBase):
+    password: str
+
+
+class User(UserMixin, UserBase):
+    id: int
 
 
 class SourceStatus(IntEnum):
@@ -26,17 +46,3 @@ class Source(BaseModel):
     status_msg: str | None = None
     status: str | None = None
     user_id: int
-
-
-class UserBase(BaseModel):
-    name: str
-    max_sources: int
-    is_admin: bool
-
-
-class UserCreate(UserBase):
-    password: str
-
-
-class User(UserBase):
-    id: int

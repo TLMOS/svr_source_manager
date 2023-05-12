@@ -3,8 +3,10 @@ from urllib.error import HTTPError
 from requests.exceptions import ConnectionError
 import numpy as np
 
-from flask import session, redirect, url_for, render_template, request
+from flask import session, redirect, url_for, render_template, request, flash
+from flask_login import login_required, current_user
 
+from app.schemas import UserRole
 
 def action(endpoint: str):
     """
@@ -18,22 +20,18 @@ def action(endpoint: str):
     def decorator(func: callable):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            error, res = None, {}
+            res = {}
             try:
                 res = func(*args, **kwargs)
                 res = res if isinstance(res, dict) else {}
             except HTTPError as e:
-                if e.code == 401:
-                    return ('Unauthorized', 401, {
-                                'WWW-Authenticate': 'Basic realm="Login Required"'
-                            })
-                error = f'HTTPError: {e.status} {e.msg}'
+                flash(f'HTTPError: {e.status} {e.msg}', 'error')
             except ConnectionError as e:
-                error = f'ConnectionError: {e}'
+                flash(f'ConnectionError: {e}', 'error')
             res.update(request.args)
             if endpoint in session:
                 res.update(session[endpoint])
-            return redirect(url_for(endpoint, error=error, **res))
+            return redirect(url_for(endpoint, **res))
         return wrapper
     return decorator
 
@@ -59,15 +57,31 @@ def render(template: str, endpoint: str = None):
                 res.update(request.args)
                 return render_template(template, **res)
             except HTTPError as e:
-                if e.code == 401:
-                    return ('Unauthorized', 401, {
-                                'WWW-Authenticate': 'Basic realm="Login Required"'
-                            })
                 error = f'HTTPError: {e.status} {e.msg}'
                 return render_template('error.html', error=error)
             except ConnectionError as e:
                 error = f'ConnectionError: {e}'
                 return render_template('error.html', error=error)
+        return wrapper
+    return decorator
+
+
+def role_required(role: UserRole):
+    """
+    Decorator for checking user role.
+    Redirects to index if user role is not specified.
+
+    Args:
+        role: Required user role.
+    """
+    def decorator(func: callable):
+        @wraps(func)
+        @login_required
+        def wrapper(*args, **kwargs):
+            if current_user.role not in (role, UserRole.ADMIN):
+                flash('You do not have access to this page', 'error')
+                return redirect(url_for('main.index'))
+            return func(*args, **kwargs)
         return wrapper
     return decorator
 

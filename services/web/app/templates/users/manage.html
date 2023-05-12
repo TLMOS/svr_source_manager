@@ -26,7 +26,7 @@
                 <tr>
                     <td>{{ user.id }}</td>
                     <td>{{ user.name }}
-                        {% if user.is_admin %}
+                        {% if user.role == 1 %}
                         <i class="fa-solid fa-crown"></i>
                         {% endif %}
                     </td>
@@ -38,7 +38,7 @@
                             </button>
                         </form>
                     </td>
-                {% endfor %}
+                    {% endfor %}
                 <tr>
                     <td colspan="5" class="td-btn">
                         <button type="button" class="btn-icon" data-toggle="modal" data-target="#addUserModal">
@@ -64,13 +64,16 @@
             <div class="modal-body">
                 <form action="{{ url_for('users.add') }}" method="POST">
                     <div class="form-group">
-                        <input class="form-control form-control-lg" type="text" name="name" placeholder="Name" autofocus="">
+                        <input class="form-control form-control-lg" type="text" name="name" placeholder="Name"
+                            autofocus="">
                     </div>
                     <div class="form-group">
-                        <input class="form-control form-control-lg" type="password" name="password" placeholder="Password">
+                        <input class="form-control form-control-lg" type="password" name="password"
+                            placeholder="Password">
                     </div>
                     <div class="form-group">
-                        <input class="form-control form-control-lg" type="number" name="max_sources" placeholder="Max sources" autofocus="">
+                        <input class="form-control form-control-lg" type="number" name="max_sources"
+                            placeholder="Max sources" autofocus="">
                     </div>
                     <div class="modal-footer">
                         <button type="submit" class="btn btn-primary" style="width: 100%;">Add</button>

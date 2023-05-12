@@ -3,7 +3,7 @@ from pathlib import Path
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import Depends
+from fastapi import Depends, Header
 
 from app.config import settings
 from app.database import async_session_factory
@@ -60,3 +60,16 @@ async def get_source_processor() -> SourceProcessor:
 
 
 SourceProcessorDep = Annotated[SourceProcessor, Depends(get_source_processor)]
+
+
+# Extract user id from header dependency
+
+
+async def get_user_id(x_user_id: Annotated[int | None, Header()] = None):
+    """FastAPI dependency to get user id from header"""
+    if x_user_id is None:
+        return None
+    return int(x_user_id)
+
+
+UserIdDep = Annotated[int | None, Depends(get_user_id)]

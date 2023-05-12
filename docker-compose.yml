@@ -5,11 +5,9 @@ services:
     container_name: svr_core_nginx
     restart: unless-stopped
     ports:
-      - "8080:81"
-      - "5000:82"
+      - "8080:8080"
     depends_on:
-    - api
-    - web
+      - web
   db:
     image: postgres:15.2-alpine
     container_name: svr_core_db
@@ -28,7 +26,7 @@ services:
     container_name: svr_core_api
     env_file: ./.env
     volumes:
-      - ./videos:/data_server/videos
+      - ./videos:/home/videos
     restart: unless-stopped
     expose:
       - 8000

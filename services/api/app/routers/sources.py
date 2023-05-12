@@ -3,13 +3,13 @@ from pathlib import Path
 import re
 import shutil
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, UploadFile, Response
+import cv2
 
 from app.config import settings
 from app import crud, schemas
 from app.models import SourceStatus
-from app.dependencies import SourceProcessorDep
-from app.security import RequiresAuthDep
+from app.dependencies import SourceProcessorDep, SessionDep, UserIdDep
 
 
 router = APIRouter(
@@ -24,7 +24,10 @@ router = APIRouter(
     summary="Create source from url",
     response_description="Source created"
 )
-async def create_from_url(name: str, url: str, auth: RequiresAuthDep):
+async def create_from_url(session: SessionDep,
+                          user_id: UserIdDep,
+                          name: str,
+                          url: str):
     """
     Create source from url.
     By default, the source is paused. To start it, use the /sources/start
@@ -36,11 +39,10 @@ async def create_from_url(name: str, url: str, auth: RequiresAuthDep):
         - video stream: mjpg
         - image: png, jpg, jpeg
     """
-    user, session = auth
-    sources = await crud.sources.read_non_finished(
-        session=session,
-        user_id=user.id if not user.is_admin else None
-    )
+    user = await crud.users.read(session, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    sources = await crud.sources.read_non_finished(session, user_id)
     if user.max_sources >= 0 and len(sources) >= user.max_sources:
         raise HTTPException(status_code=400, detail="Source limit exceeded")
     source = await crud.sources.create(session, name, url, user.id)
@@ -53,8 +55,10 @@ async def create_from_url(name: str, url: str, auth: RequiresAuthDep):
     summary="Create source from file",
     response_description="Source created"
 )
-async def create_from_file(name: str, file: UploadFile,
-                           auth: RequiresAuthDep):
+async def create_from_file(session: SessionDep,
+                           user_id: UserIdDep,
+                           name: str,
+                           file: UploadFile):
     """
     Create source from file.
     By default, the source is paused. To start it, use the /sources/start
@@ -63,13 +67,13 @@ async def create_from_file(name: str, file: UploadFile,
     - **name**: name of the source, allows duplicates
     - **file**: video file. Supported extensions: mp4, avi
     """
-    user, session = auth
-    sources = await crud.sources.read_non_finished(
-        session=session,
-        user_id=user.id if not user.is_admin else None
-    )
+    user = await crud.users.read(session, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    sources = await crud.sources.read_non_finished(session, user_id)
     if user.max_sources >= 0 and len(sources) >= user.max_sources:
         raise HTTPException(status_code=400, detail="Source limit exceeded")
+
     file_name = file.filename.replace(' ', '_')
     file_name = re.sub(r'[^a-zA-Z0-9_.-]', '', file_name)
     path = settings.sources_dir / file_name
@@ -81,6 +85,7 @@ async def create_from_file(name: str, file: UploadFile,
     with open(path, 'wb') as out_file:
         while content := file.file.read(1024):
             out_file.write(content)
+
     source = await crud.sources.create(session, name, path.as_uri(), user.id)
     return source
 
@@ -91,19 +96,16 @@ async def create_from_file(name: str, file: UploadFile,
     summary="Get source by id",
     response_description="Source found"
 )
-async def get(id: int,  auth: RequiresAuthDep):
+async def get(session: SessionDep,
+              user_id: UserIdDep,
+              id: int):
     """
     Get source by id.
 
     Parameters:
     - **id**: source id
     """
-    user, session = auth
-    source = await crud.sources.read(
-        session=session,
-        id=id,
-        user_id=user.id if not user.is_admin else None
-    )
+    source = await crud.sources.read(session, id, user_id)
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
     return source
@@ -115,15 +117,12 @@ async def get(id: int,  auth: RequiresAuthDep):
     summary="Get list of all sources",
     response_description="List of all sources"
 )
-async def get_all(auth: RequiresAuthDep):
+async def get_all(session: SessionDep,
+                  user_id: UserIdDep):
     """
     Get list of all sources.
     """
-    user, session = auth
-    sources = await crud.sources.read_all(
-        session=session,
-        user_id=user.id if not user.is_admin else None
-    )
+    sources = await crud.sources.read_all(session, user_id)
     return sources
 
 
@@ -133,24 +132,74 @@ async def get_all(auth: RequiresAuthDep):
     summary="Get list of non-finished sources",
     response_description="List of non-finished sources"
 )
-async def get_non_finished(auth: RequiresAuthDep):
+async def get_non_finished(session: SessionDep,
+                           user_id: UserIdDep):
     """
     Get list of non-finished sources.
     """
-    user, session = auth
-    sources = await crud.sources.read_non_finished(
-        session=session,
-        user_id=user.id if not user.is_admin else None
-    )
+    sources = await crud.sources.read_non_finished(session, user_id)
     return sources
+
+
+@router.get(
+    "/get/frame",
+    summary="Get frame",
+    response_description="Frame",
+    response_class=Response
+)
+async def get_frame(session: SessionDep,
+                    source_processor: SourceProcessorDep,
+                    user_id: UserIdDep,
+                    id: int):
+    """
+    Get frame from source.
+
+    Parameters:
+    - **source_id**: source id
+    """
+    source = await crud.sources.read(
+        session=session,
+        id=id,
+        user_id=user_id
+    )
+    if source is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+    frame = await source_processor.get_frame(id)
+    if frame is None:
+        raise HTTPException(status_code=404, detail="Frame not found")
+    _, buffer = cv2.imencode('.jpg', frame)
+    return Response(content=buffer.tobytes(), media_type="image/jpeg")
+
+
+@router.get(
+    "/get/time_coverage",
+    summary="Get all saved time intervals from source",
+    response_description="Video chunks",
+    response_model=list[tuple[float, float]]
+)
+async def get_time_coverage(session: SessionDep,
+                            user_id: UserIdDep,
+                            id: int):
+    """
+    Get all saved time intervals from source.
+
+    Parameters:
+    - **source_id**: source id
+    """
+    chunks = await crud.video_chunks.read_all(session, id, user_id)
+    if chunks is None:
+        raise HTTPException(status_code=404, detail="Video chunks not found")
+    return [(chunk.start_time, chunk.end_time) for chunk in chunks]
 
 
 @router.put(
     "/start",
     summary="Start source"
 )
-async def start(id: int, auth: RequiresAuthDep,
-                source_processor: SourceProcessorDep):
+async def start(session: SessionDep,
+                source_processor: SourceProcessorDep,
+                user_id: UserIdDep,
+                id: int):
     """
     Start source processing in background:
     - Get frames from source url
@@ -161,12 +210,7 @@ async def start(id: int, auth: RequiresAuthDep,
     Parameters:
     - **id**: source id
     """
-    user, session = auth
-    source = await crud.sources.read(
-        session=session,
-        id=id,
-        user_id=user.id if not user.is_admin else None
-    )
+    source = await crud.sources.read(session, id, user_id)
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
     if source.status_code == SourceStatus.ACTIVE:
@@ -179,27 +223,26 @@ async def start(id: int, auth: RequiresAuthDep,
     "/pause",
     summary="Pause source"
 )
-async def pause(id: int, auth: RequiresAuthDep,
-                source_processor: SourceProcessorDep):
+async def pause(session: SessionDep,
+                source_processor: SourceProcessorDep,
+                user_id: UserIdDep,
+                id: int):
     """
     Pause source processing.
 
     Parameters:
     - **id**: source id
     """
-    user, session = auth
-    source = await crud.sources.read(
-        session=session,
-        id=id,
-        user_id=user.id if not user.is_admin else None
-    )
+    source = await crud.sources.read(session, id, user_id)
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
     if source.status_code != SourceStatus.ACTIVE:
         raise HTTPException(status_code=400, detail="Source not active")
     if source.status_code == SourceStatus.FINISHED:
         raise HTTPException(status_code=400, detail="Source already finished")
+    print(source_processor.tasks)
     await source_processor.remove(id)
+    print(source_processor.tasks)
     await crud.sources.update_status(session, id, SourceStatus.PAUSED)
 
 
@@ -207,8 +250,10 @@ async def pause(id: int, auth: RequiresAuthDep,
     "/finish",
     summary="Finish source"
 )
-async def finish(id: int, auth: RequiresAuthDep,
-                 source_processor: SourceProcessorDep):
+async def finish(session: SessionDep,
+                 source_processor: SourceProcessorDep,
+                 user_id: UserIdDep,
+                 id: int):
     """
     Finish source processing. Finished source can't be started again.
     If you create source from file, it will be automatically set as finished,
@@ -217,12 +262,7 @@ async def finish(id: int, auth: RequiresAuthDep,
     Parameters:
     - **id**: source id
     """
-    user, session = auth
-    source = await crud.sources.read(
-        session=session,
-        id=id,
-        user_id=user.id if not user.is_admin else None
-    )
+    source = await crud.sources.read(session, id, user_id)
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
     if source.status_code == SourceStatus.FINISHED:
@@ -236,19 +276,16 @@ async def finish(id: int, auth: RequiresAuthDep,
     "/delete",
     summary="Delete source"
 )
-async def delete(id: int, auth: RequiresAuthDep,
-                 source_processor: SourceProcessorDep):
+async def delete(session: SessionDep,
+                 source_processor: SourceProcessorDep,
+                 user_id: UserIdDep,
+                 id: int):
     """
     Remove source.
     Video chunks will be deleted from disk and database.
     If source was created from file, it will be deleted from disk.
     """
-    user, session = auth
-    source = await crud.sources.read(
-        session=session,
-        id=id,
-        user_id=user.id if not user.is_admin else None
-    )
+    source = await crud.sources.read(session, id, user_id)
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
     if source.status_code == SourceStatus.ACTIVE:

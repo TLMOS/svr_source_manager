@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse
 
 from app.database import async_session_factory
 from app.config import settings
-from app.routers import users, sources, videos
+from app.routers import users, sources
 from app import crud, schemas, security
 
 
@@ -15,10 +15,6 @@ tags_metadata = [
     {
         "name": "Source management",
         "description": "Manage video sources."
-    },
-    {
-        "name": "Retrieve video data",
-        "description": "Retrieve video segments and frames."
     }
 ]
 
@@ -34,7 +30,7 @@ send it to the processing API.
 app = FastAPI(
     title="Security Video Retrieval Core API",
     description=description,
-    version="0.1.2",
+    version="0.1.3",
     license_info={
         "name": "MIT License",
         "url": "https://opensource.org/licenses/mit-license.php"
@@ -45,7 +41,6 @@ app = FastAPI(
 
 app.include_router(users.router)
 app.include_router(sources.router)
-app.include_router(videos.router)
 
 
 @app.on_event("startup")
@@ -63,7 +58,7 @@ async def startup():
                     password=security.get_password_hash(
                         settings.admin_password
                     ),
-                    is_admin=True,
+                    role=schemas.UserRole.ADMIN,
                     max_sources=-1
                 )
                 await crud.users.create(session, user_schema)

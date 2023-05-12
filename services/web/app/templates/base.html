@@ -26,21 +26,52 @@
     <div class="collapse navbar-collapse" id="navbarNavAltMarkup">
       <div class="navbar-nav">
         <a class="nav-item nav-link" href="{{ url_for('sources.index') }}">Sources</a>
+        {% if current_user.is_authenticated and current_user.role == 1 %}
         <a class="nav-item nav-link" href="{{ url_for('users.manage') }}">Users</a>
+        {% endif %}
         <a class="nav-item nav-link" href="#">Search</a>
-        <a class="nav-item nav-link" href="{{ url_for('users.me') }}">Profile</a>
-        <a class="nav-item nav-link" href="{{ url_for('users.forget') }}">Logout</a>
+        {% if current_user.is_authenticated %}
+        <a class="nav-item nav-link" href="{{ url_for('main.profile') }}">
+          Profile
+        </a>
+        {% endif %}
+        {% if not current_user.is_authenticated %}
+        <a class="nav-item nav-link" href="{{ url_for('main.login') }}">
+          Login
+        </a>
+        {% endif %}
+        {% if current_user.is_authenticated %}
+        <a class="nav-item nav-link" href="{{ url_for('main.logout') }}">
+          Logout
+        </a>
+        {% endif %}
       </div>
     </div>
   </nav>
 
   <div class="container text-center mx-auto mt-5 main-div">
-    <!--Error message-->
-    {% if error %}
-    <div class="alert alert-danger" role="alert">
-      {{ error }}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-dismissible fade show
+        {% if category == 'error' %}
+            alert-danger
+        {% elif category == 'warning' %}
+            alert-warning
+        {% elif category == 'info' %}
+            alert-info
+        {% else %}
+            alert-success
+        {% endif %}
+      " role="alert">
+      {{ message }}
+      <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+      </button>
     </div>
+    {% endfor %}
     {% endif %}
+    {% endwith %}
 
     {% block content %} {% endblock %}
   </div>

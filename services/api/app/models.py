@@ -1,9 +1,14 @@
 from enum import IntEnum
 
-from sqlalchemy import Column, Integer, Float, String, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, Float, String, ForeignKey
 from sqlalchemy.orm import relationship
 
 from .database import Base
+
+
+class UserRole(IntEnum):
+    USER = 0
+    ADMIN = 1
 
 
 class User(Base):
@@ -13,7 +18,7 @@ class User(Base):
     name = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
     max_sources = Column(Integer, default=5, nullable=False)
-    is_admin = Column(Boolean, default=False, nullable=False)
+    role = Column(Integer, default=UserRole.USER, nullable=False)
 
     sources = relationship('Source', back_populates='user',
                            cascade='all, delete')

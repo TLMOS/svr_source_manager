@@ -1,11 +1,15 @@
-from urllib.error import HTTPError
-
 from flask import request, session
 
 from app.blueprints.users import bp
-from app.utils import render, action
+from app.utils import render, action, role_required
 from app import api_client
-from app.schemas import UserCreate
+from app.schemas import UserCreate, UserRole
+
+
+@bp.before_request
+@role_required(UserRole.ADMIN)
+def before_request():
+    pass
 
 
 @bp.route('/manage', methods=['GET'])
@@ -40,30 +44,6 @@ def manage():
     }
 
 
-@bp.route('/forget', methods=['GET'])
-@action(endpoint='main.index')
-def forget():
-    api_client.users.forget()
-
-
-@bp.route('/me', methods=['GET'])
-@render(template='users/user.html', endpoint='users.me')
-def me():
-    user = api_client.users.me()
-    return {
-        'user': user
-    }
-
-
-@bp.route('/update/password/<int:id>', methods=['POST'])
-@action(endpoint='users.me')
-def update_password(id: int):
-    password = request.form['password']
-    if not password:
-        raise HTTPError(None, 400, 'Password cannot be empty', None, None)
-    api_client.users.update_password(id, password)
-
-
 @bp.route('/add', methods=['POST'])
 @action(endpoint='users.manage')
 def add():
@@ -74,7 +54,7 @@ def add():
         name=name,
         password=password,
         max_sources=max_sources,
-        is_admin=False
+        role=UserRole.USER
     )
     api_client.users.create(user_schema)
 

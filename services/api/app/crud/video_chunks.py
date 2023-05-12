@@ -42,15 +42,6 @@ async def read_all(session: AsyncSession, source_id: int,
     return result.scalars().all()
 
 
-async def read_last(session: AsyncSession, source_id: int,
-                    user_id: int | None = None) -> VideoChunk:
-    """Get last video chunk of the source."""
-    statement = select(VideoChunk).filter(VideoChunk.source_id == source_id)
-    statement = filter_by_user(statement, user_id)
-    result = await session.execute(statement)
-    return result.scalars().first()
-
-
 async def read_by_timestamp(session: AsyncSession, source_id: int,
                             timestamp: float, user_id: int | None = None
                             ) -> VideoChunk:

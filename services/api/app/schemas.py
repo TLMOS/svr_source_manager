@@ -1,6 +1,53 @@
 """Pydantic schemas for the data server."""
 
 from pydantic import BaseModel
+from app.models import UserRole, SourceStatus
+
+
+class UserBase(BaseModel):
+    name: str
+    max_sources: int
+    role: UserRole
+
+
+class UserCreate(UserBase):
+    password: str
+
+
+class User(UserBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+        schema_extra = {
+            "example": {
+                "id": 1,
+                "name": "admin",
+                "role": 1,
+                "max_sources": -1
+            }
+        }
+
+
+class Source(BaseModel):
+    id: int
+    name: str
+    url: str
+    status_code: SourceStatus
+    status_msg: str | None = None
+    user_id: int
+
+    class Config:
+        orm_mode = True
+        schema_extra = {
+            "example": {
+                "id": 1,
+                "name": "Parking lot",
+                "url": "http://example.com/video.mjpg",
+                "status_code": 0,
+                "status_msg": None
+            }
+        }
 
 
 class VideoChunk(BaseModel):
@@ -19,51 +66,5 @@ class VideoChunk(BaseModel):
                 "file_path": "/path/to/chunk.mp4",
                 "start_time": 0.0,
                 "end_time": 10.0
-            }
-        }
-
-
-class Source(BaseModel):
-    id: int
-    name: str
-    url: str
-    status_code: int
-    status_msg: str | None = None
-    user_id: int
-
-    class Config:
-        orm_mode = True
-        schema_extra = {
-            "example": {
-                "id": 1,
-                "name": "Parking lot",
-                "url": "http://example.com/video.mjpg",
-                "status_code": 0,
-                "status_msg": None
-            }
-        }
-
-
-class UserBase(BaseModel):
-    name: str
-    max_sources: int
-    is_admin: bool
-
-
-class UserCreate(UserBase):
-    password: str
-
-
-class User(UserBase):
-    id: int
-
-    class Config:
-        orm_mode = True
-        schema_extra = {
-            "example": {
-                "id": 1,
-                "name": "admin",
-                "is_admin": True,
-                "max_sources": -1
             }
         }
