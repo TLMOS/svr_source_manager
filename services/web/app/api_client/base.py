@@ -5,7 +5,6 @@ from urllib.error import HTTPError
 from flask_login import current_user
 
 from app.config import settings
-from app.schemas import UserRole
 
 
 class Router:
@@ -30,19 +29,20 @@ class Router:
             route: Route to send request to.
             **kwargs: Params to send with request.
         """
+        headers = {}
         if authorized is None:
-            # Use class default value
             authorized = self.authorized
-        if authorized and current_user.role == UserRole.ADMIN:
-            # X-User-ID header adds only restrictions, so we don't need
-            # to add it for admin user
-            authorized = False
+        if authorized:
+            headers = {
+                'X-User-Id': str(current_user.id),
+                'X-User-Role': str(current_user.role.value)
+            }
         response = requests.request(
             method=method,
             url=f'{settings.api_url}/{self.prefix}/{route}',
             params=params,
             json=json,
-            headers={'X-User-ID': str(current_user.id)} if authorized else None
+            headers=headers
         )
         if response.status_code != 200:
             raise HTTPError(

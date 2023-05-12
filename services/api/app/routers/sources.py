@@ -8,8 +8,9 @@ import cv2
 
 from app.config import settings
 from app import crud, schemas
-from app.models import SourceStatus
+from app.models import SourceStatus, UserRole
 from app.dependencies import SourceProcessorDep, SessionDep, UserIdDep
+from app.dependencies import UserRoleDep
 
 
 router = APIRouter(
@@ -98,6 +99,7 @@ async def create_from_file(session: SessionDep,
 )
 async def get(session: SessionDep,
               user_id: UserIdDep,
+              user_role: UserRoleDep,
               id: int):
     """
     Get source by id.
@@ -105,6 +107,7 @@ async def get(session: SessionDep,
     Parameters:
     - **id**: source id
     """
+    user_id = None if user_role == UserRole.ADMIN else user_id
     source = await crud.sources.read(session, id, user_id)
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
@@ -118,10 +121,12 @@ async def get(session: SessionDep,
     response_description="List of all sources"
 )
 async def get_all(session: SessionDep,
-                  user_id: UserIdDep):
+                  user_id: UserIdDep,
+                  user_role: UserRoleDep):
     """
     Get list of all sources.
     """
+    user_id = None if user_role == UserRole.ADMIN else user_id
     sources = await crud.sources.read_all(session, user_id)
     return sources
 
@@ -133,10 +138,12 @@ async def get_all(session: SessionDep,
     response_description="List of non-finished sources"
 )
 async def get_non_finished(session: SessionDep,
-                           user_id: UserIdDep):
+                           user_id: UserIdDep,
+                           user_role: UserRoleDep):
     """
     Get list of non-finished sources.
     """
+    user_id = None if user_role == UserRole.ADMIN else user_id
     sources = await crud.sources.read_non_finished(session, user_id)
     return sources
 
@@ -150,6 +157,7 @@ async def get_non_finished(session: SessionDep,
 async def get_frame(session: SessionDep,
                     source_processor: SourceProcessorDep,
                     user_id: UserIdDep,
+                    user_role: UserRoleDep,
                     id: int):
     """
     Get frame from source.
@@ -157,6 +165,7 @@ async def get_frame(session: SessionDep,
     Parameters:
     - **source_id**: source id
     """
+    user_id = None if user_role == UserRole.ADMIN else user_id
     source = await crud.sources.read(
         session=session,
         id=id,
@@ -179,6 +188,7 @@ async def get_frame(session: SessionDep,
 )
 async def get_time_coverage(session: SessionDep,
                             user_id: UserIdDep,
+                            user_role: UserRoleDep,
                             id: int):
     """
     Get all saved time intervals from source.
@@ -186,6 +196,7 @@ async def get_time_coverage(session: SessionDep,
     Parameters:
     - **source_id**: source id
     """
+    user_id = None if user_role == UserRole.ADMIN else user_id
     chunks = await crud.video_chunks.read_all(session, id, user_id)
     if chunks is None:
         raise HTTPException(status_code=404, detail="Video chunks not found")
@@ -199,6 +210,7 @@ async def get_time_coverage(session: SessionDep,
 async def start(session: SessionDep,
                 source_processor: SourceProcessorDep,
                 user_id: UserIdDep,
+                user_role: UserRoleDep,
                 id: int):
     """
     Start source processing in background:
@@ -210,6 +222,7 @@ async def start(session: SessionDep,
     Parameters:
     - **id**: source id
     """
+    user_id = None if user_role == UserRole.ADMIN else user_id
     source = await crud.sources.read(session, id, user_id)
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
@@ -226,6 +239,7 @@ async def start(session: SessionDep,
 async def pause(session: SessionDep,
                 source_processor: SourceProcessorDep,
                 user_id: UserIdDep,
+                user_role: UserRoleDep,
                 id: int):
     """
     Pause source processing.
@@ -233,6 +247,7 @@ async def pause(session: SessionDep,
     Parameters:
     - **id**: source id
     """
+    user_id = None if user_role == UserRole.ADMIN else user_id
     source = await crud.sources.read(session, id, user_id)
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
@@ -253,6 +268,7 @@ async def pause(session: SessionDep,
 async def finish(session: SessionDep,
                  source_processor: SourceProcessorDep,
                  user_id: UserIdDep,
+                 user_role: UserRoleDep,
                  id: int):
     """
     Finish source processing. Finished source can't be started again.
@@ -262,6 +278,7 @@ async def finish(session: SessionDep,
     Parameters:
     - **id**: source id
     """
+    user_id = None if user_role == UserRole.ADMIN else user_id
     source = await crud.sources.read(session, id, user_id)
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
@@ -279,12 +296,14 @@ async def finish(session: SessionDep,
 async def delete(session: SessionDep,
                  source_processor: SourceProcessorDep,
                  user_id: UserIdDep,
+                 user_role: UserRoleDep,
                  id: int):
     """
     Remove source.
     Video chunks will be deleted from disk and database.
     If source was created from file, it will be deleted from disk.
     """
+    user_id = None if user_role == UserRole.ADMIN else user_id
     source = await crud.sources.read(session, id, user_id)
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")

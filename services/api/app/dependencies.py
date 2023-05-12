@@ -62,14 +62,18 @@ async def get_source_processor() -> SourceProcessor:
 SourceProcessorDep = Annotated[SourceProcessor, Depends(get_source_processor)]
 
 
-# Extract user id from header dependency
+# Extract user id and role from header dependency
 
 
-async def get_user_id(x_user_id: Annotated[int | None, Header()] = None):
+async def get_user_id(x_user_id: Annotated[int, Header()]):
     """FastAPI dependency to get user id from header"""
-    if x_user_id is None:
-        return None
     return int(x_user_id)
 
 
+async def get_user_role(x_user_role: Annotated[str, Header()]):
+    """FastAPI dependency to get user role from header"""
+    return int(x_user_role)
+
+
 UserIdDep = Annotated[int | None, Depends(get_user_id)]
+UserRoleDep = Annotated[str | None, Depends(get_user_role)]

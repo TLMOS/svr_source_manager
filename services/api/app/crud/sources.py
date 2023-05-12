@@ -79,6 +79,3 @@ async def delete(session: AsyncSession, id: int) -> Source:
     await session.delete(source)
     await session.commit()
     return source
-
-
-
