@@ -49,13 +49,7 @@
                                 <i class="fa-solid fa-pause"></i>
                             </button>
                         </form>
-                        {% elif status == 'Paused' %}
-                        <form action="{{ url_for('sources.start', id=source['id']) }}" method="POST">
-                            <button type="submit" class="btn-icon">
-                                <i class="fa-solid fa-play"></i>
-                            </button>
-                        </form>
-                        {% elif status == 'Error' %}
+                        {% else %}
                         <form action="{{ url_for('sources.start', id=source['id']) }}" method="POST">
                             <button type="submit" class="btn-icon">
                                 <i class="fa-solid fa-play"></i>
