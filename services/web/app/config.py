@@ -8,6 +8,8 @@ basedir = Path(__file__).parent.parent.absolute()
 class Settings(BaseSettings):
     # Flask settings
     SECRET_KEY: str
+    MAX_CONTENT_LENGTH: int = 1024 * 1024 * 200
+    UPLOAD_EXTENSIONS: list[str] = ['.jpg', '.png', '.mp4', '.avi']
 
     # Service urls
     api_url: str

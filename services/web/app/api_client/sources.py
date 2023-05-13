@@ -10,9 +10,10 @@ def create_from_url(name: str, url: str) -> dict:
                          params={'name': name, 'url': url}).json()
 
 
-def creare_from_file(name: str, file: bytes) -> dict:
+def creare_from_file(name: str, file_name: str, content: bytes) -> dict:
     return route.request('POST', 'create/file',
-                         params={'name': name, 'file': file}).json()
+                         params={'name': name},
+                         files={'file': (file_name, content)}).json()
 
 
 def get(id: int) -> Source:

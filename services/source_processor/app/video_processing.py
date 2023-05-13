@@ -92,11 +92,11 @@ class VideoCapture(SourceCapture):
         return self._frames_read < self._frames_total
 
     async def read(self) -> np.ndarray:
-        if self._skip_frames and self._frames_read:
-            self._frames_read += self._skip_frames
-            self._cap.set(cv2.CAP_PROP_POS_FRAMES, self._frames_read - 1)
         ret, frame = self._cap.read()
         self._frames_read += 1
+        if self._skip_frames:
+            self._frames_read += self._skip_frames
+            self._cap.set(cv2.CAP_PROP_POS_FRAMES, self._frames_read - 1)
         if ret:
             return frame
         else:

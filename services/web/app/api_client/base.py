@@ -19,6 +19,7 @@ class Router:
                 route: str,
                 params: dict = {},
                 json: str | None = None,
+                files: dict | None = None,
                 authorized: bool | None = None
                 ) -> requests.Response:
         """
@@ -40,7 +41,7 @@ class Router:
         url = f'{settings.api_url}/{self.prefix}/{route}'
         try:
             response = requests.request(method, url, params=params, json=json,
-                                        headers=headers)
+                                        files=files, headers=headers)
         except requests.exceptions.ConnectionError as e:
             raise HTTPError(url=url, code=404, msg=e, hdrs={}, fp=None)
         if response.status_code != 200:

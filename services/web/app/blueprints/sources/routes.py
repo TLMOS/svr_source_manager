@@ -3,7 +3,7 @@ from datetime import timedelta
 from urllib.error import HTTPError
 import base64
 
-from flask import request, session
+from flask import request, session, flash
 from flask_login import login_required
 
 from common.constants import SOURCE_STATUS_TO_STR
@@ -51,7 +51,14 @@ def index():
 def add():
     name = request.form['name']
     url = request.form['url']
-    api_client.sources.create_from_url(name, url)
+    if name == '':
+        flash(message='Source name can\'t be empty.', category='error')
+    elif 'file' in request.files:
+        content = request.files['file'].read()
+        file_name = request.files['file'].filename
+        api_client.sources.creare_from_file(name, file_name, content)
+    else:
+        api_client.sources.create_from_url(name, url)
 
 
 @bp.route('/start/<int:id>', methods=['POST'])
