@@ -1,5 +1,13 @@
+from flask_login import UserMixin
+
+from common import schemas
+from common.schemas import UserCreate
 from app.api_client.base import Router
-from app.schemas import User, UserCreate
+
+
+class User(UserMixin, schemas.User):
+    """Basic user schema, with login logic mixin"""
+    pass
 
 
 route = Router('users')

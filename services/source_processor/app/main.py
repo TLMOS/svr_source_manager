@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse, Response
 import cv2
 
-from app import schemas
+from common.schemas import Source
 from app.video_processing import SourceProcessor
 
 
@@ -42,14 +42,14 @@ async def root():
     "/add",
     summary="Add source to processing list"
 )
-async def add(source_schema: schemas.Source):
+async def add(source: Source):
     """
     Add source to processing list.
 
     Parameters:
     - **id**: source id
     """
-    source_processor.add(source_schema)
+    source_processor.add(source)
 
 
 @app.delete(

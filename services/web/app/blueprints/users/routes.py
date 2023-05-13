@@ -1,9 +1,10 @@
 from flask import request, session
 
+from common.schemas import UserCreate
+from common.constants import UserRole
 from app.blueprints.users import bp
-from app.utils import render, action, role_required
+from app.logic import render, action, role_required
 from app import api_client
-from app.schemas import UserCreate, UserRole
 
 
 @bp.before_request

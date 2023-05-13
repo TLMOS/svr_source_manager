@@ -1,8 +1,8 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common import schemas
 from app.models import VideoChunk, Source
-from app import schemas
 
 
 def filter_by_user(statement, user_id: int | None) -> None:
@@ -15,13 +15,13 @@ def filter_by_user(statement, user_id: int | None) -> None:
 
 
 async def create(session: AsyncSession,
-                 chunk_schema: schemas.VideoChunkCreate) -> VideoChunk:
+                 chunk: schemas.VideoChunkCreate) -> VideoChunk:
     """Create video chunk in the database."""
-    chunk = VideoChunk(**chunk_schema.dict())
-    session.add(chunk)
+    db_chunk = VideoChunk(**chunk.dict())
+    session.add(db_chunk)
     await session.commit()
-    await session.refresh(chunk)
-    return chunk
+    await session.refresh(db_chunk)
+    return db_chunk
 
 
 async def read(session: AsyncSession, id: int,

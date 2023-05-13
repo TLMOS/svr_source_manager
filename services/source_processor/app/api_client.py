@@ -2,9 +2,9 @@ import requests
 
 from fastapi import HTTPException
 
+from common.constants import SourceStatus
+from common.schemas import VideoChunkCreate, Source
 from app.config import settings
-from app.schemas import SourceStatus, VideoChunkCreate
-from app import schemas
 
 
 def base_reqest(method: str,
@@ -20,12 +20,11 @@ def base_reqest(method: str,
         route: Route to send request to.
         params: Params to send with request.
     """
-    response = requests.request(
-        method=method,
-        url=f'{settings.api_url}/{route}',
-        params=params,
-        json=json
-    )
+    url = f'{settings.api_url}/{route}'
+    try:
+        response = requests.request(method, url, params=params, json=json)
+    except requests.exceptions.ConnectionError as e:
+        raise HTTPException(status_code=404, detail=e.strerror)
     if response.status_code != 200:
         raise HTTPException(
             response.status_code,
@@ -35,11 +34,11 @@ def base_reqest(method: str,
     return response
 
 
-def get_all_active_sources() -> list[schemas.Source]:
+def get_all_active_sources() -> list[Source]:
     response = base_reqest('GET', 'sources/get/all', params={
         'status': SourceStatus.ACTIVE.value
     })
-    return [schemas.Source(**source) for source in response.json()]
+    return [Source(**source) for source in response.json()]
 
 
 def update_source_status(id: int, status: SourceStatus,
@@ -51,5 +50,5 @@ def update_source_status(id: int, status: SourceStatus,
     })
 
 
-def create_video_chunk(chunk_schema: VideoChunkCreate):
-    base_reqest('POST', 'videos/chunks/create', json=chunk_schema.dict())
+def create_video_chunk(chunk: VideoChunkCreate):
+    base_reqest('POST', 'videos/chunks/create', json=chunk.dict())

@@ -2,9 +2,9 @@ import requests
 
 from fastapi import HTTPException
 
+from common import schemas
 from app.config import settings
-from app.models import Source
-from app import schemas
+from app import models
 
 
 def base_reqest(method: str,
@@ -34,9 +34,9 @@ def base_reqest(method: str,
     return response
 
 
-def add(source: Source):
-    source_schema = schemas.Source.from_orm(source)
-    base_reqest('POST', 'add', json=source_schema.dict())
+def add(db_source: models.Source):
+    source = schemas.Source.from_orm(db_source)
+    base_reqest('POST', 'add', json=source.dict())
 
 
 def remove(source_id: int):

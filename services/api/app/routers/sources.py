@@ -5,9 +5,10 @@ import shutil
 
 from fastapi import APIRouter, HTTPException, UploadFile, Response
 
+from common.constants import SourceStatus, UserRole
+from common import schemas
 from app.config import settings
-from app import crud, schemas, source_processor_client
-from app.models import SourceStatus, UserRole
+from app import crud, source_processor_client
 from app.dependencies import SessionDep, UserIdDep, UserRoleDep
 
 
@@ -36,16 +37,14 @@ async def create_from_url(session: SessionDep,
     - **url**: url of the source, must be accessible. Supported extensions:
         - video: mp4, avi
         - video stream: mjpg
-        - image: png, jpg, jpeg
     """
-    user = await crud.users.read(session, user_id)
-    if user is None:
+    db_user = await crud.users.read(session, user_id)
+    if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    sources = await crud.sources.read_non_finished(session, user_id)
-    if user.max_sources >= 0 and len(sources) >= user.max_sources:
+    db_sources = await crud.sources.read_non_finished(session, user_id)
+    if db_user.max_sources >= 0 and len(db_sources) >= db_user.max_sources:
         raise HTTPException(status_code=400, detail="Source limit exceeded")
-    source = await crud.sources.create(session, name, url, user.id)
-    return source
+    return await crud.sources.create(session, name, url, db_user.id)
 
 
 @router.post(
@@ -66,11 +65,11 @@ async def create_from_file(session: SessionDep,
     - **name**: name of the source, allows duplicates
     - **file**: video file. Supported extensions: mp4, avi
     """
-    user = await crud.users.read(session, user_id)
-    if user is None:
+    db_user = await crud.users.read(session, user_id)
+    if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
     sources = await crud.sources.read_non_finished(session, user_id)
-    if user.max_sources >= 0 and len(sources) >= user.max_sources:
+    if db_user.max_sources >= 0 and len(sources) >= db_user.max_sources:
         raise HTTPException(status_code=400, detail="Source limit exceeded")
 
     file_name = file.filename.replace(' ', '_')
@@ -85,8 +84,7 @@ async def create_from_file(session: SessionDep,
         while content := file.file.read(1024):
             out_file.write(content)
 
-    source = await crud.sources.create(session, name, path.as_uri(), user.id)
-    return source
+    return await crud.sources.create(session, name, path.as_uri(), db_user.id)
 
 
 @router.get(
@@ -106,10 +104,10 @@ async def get(session: SessionDep,
     - **id**: source id
     """
     user_id = None if user_role == UserRole.ADMIN else user_id
-    source = await crud.sources.read(session, id, user_id)
-    if source is None:
+    db_source = await crud.sources.read(session, id, user_id)
+    if db_source is None:
         raise HTTPException(status_code=404, detail="Source not found")
-    return source
+    return db_source
 
 
 @router.get(
@@ -131,8 +129,8 @@ async def get_all(session: SessionDep,
                   given status
     """
     user_id = None if user_role == UserRole.ADMIN else user_id
-    sources = await crud.sources.read_all(session, status, user_id)
-    return sources
+    db_sources = await crud.sources.read_all(session, status, user_id)
+    return db_sources
 
 
 @router.get(
@@ -148,8 +146,7 @@ async def get_non_finished(session: SessionDep,
     Get list of non-finished sources.
     """
     user_id = None if user_role == UserRole.ADMIN else user_id
-    sources = await crud.sources.read_non_finished(session, user_id)
-    return sources
+    return await crud.sources.read_non_finished(session, user_id)
 
 
 @router.get(
@@ -169,12 +166,12 @@ async def get_frame(session: SessionDep,
     - **source_id**: source id
     """
     user_id = None if user_role == UserRole.ADMIN else user_id
-    source = await crud.sources.read(
+    db_source = await crud.sources.read(
         session=session,
         id=id,
         user_id=user_id
     )
-    if source is None:
+    if db_source is None:
         raise HTTPException(status_code=404, detail="Source not found")
     frame = source_processor_client.get_frame(id)
     return Response(content=frame, media_type="image/jpeg")
@@ -197,10 +194,10 @@ async def get_time_coverage(session: SessionDep,
     - **source_id**: source id
     """
     user_id = None if user_role == UserRole.ADMIN else user_id
-    chunks = await crud.video_chunks.read_all(session, id, user_id)
-    if chunks is None:
+    db_chunks = await crud.video_chunks.read_all(session, id, user_id)
+    if db_chunks is None:
         raise HTTPException(status_code=404, detail="Video chunks not found")
-    return [(chunk.start_time, chunk.end_time) for chunk in chunks]
+    return [(db_chunk.start_time, db_chunk.end_time) for db_chunk in db_chunks]
 
 
 @router.put(
@@ -222,13 +219,13 @@ async def start(session: SessionDep,
     - **id**: source id
     """
     user_id = None if user_role == UserRole.ADMIN else user_id
-    source = await crud.sources.read(session, id, user_id)
-    if source is None:
+    db_source = await crud.sources.read(session, id, user_id)
+    if db_source is None:
         raise HTTPException(status_code=404, detail="Source not found")
-    if source.status_code == SourceStatus.ACTIVE:
+    if db_source.status_code == SourceStatus.ACTIVE:
         raise HTTPException(status_code=400, detail="Source already active")
     await crud.sources.update_status(session, id, SourceStatus.ACTIVE)
-    source_processor_client.add(source)
+    source_processor_client.add(db_source)
 
 
 @router.put(
@@ -246,12 +243,12 @@ async def pause(session: SessionDep,
     - **id**: source id
     """
     user_id = None if user_role == UserRole.ADMIN else user_id
-    source = await crud.sources.read(session, id, user_id)
-    if source is None:
+    db_source = await crud.sources.read(session, id, user_id)
+    if db_source is None:
         raise HTTPException(status_code=404, detail="Source not found")
-    if source.status_code != SourceStatus.ACTIVE:
+    if db_source.status_code != SourceStatus.ACTIVE:
         raise HTTPException(status_code=400, detail="Source not active")
-    if source.status_code == SourceStatus.FINISHED:
+    if db_source.status_code == SourceStatus.FINISHED:
         raise HTTPException(status_code=400, detail="Source already finished")
     source_processor_client.remove(id)
     await crud.sources.update_status(session, id, SourceStatus.PAUSED)
@@ -274,12 +271,12 @@ async def finish(session: SessionDep,
     - **id**: source id
     """
     user_id = None if user_role == UserRole.ADMIN else user_id
-    source = await crud.sources.read(session, id, user_id)
-    if source is None:
+    db_source = await crud.sources.read(session, id, user_id)
+    if db_source is None:
         raise HTTPException(status_code=404, detail="Source not found")
-    if source.status_code == SourceStatus.FINISHED:
+    if db_source.status_code == SourceStatus.FINISHED:
         raise HTTPException(status_code=400, detail="Source already finished")
-    if source.status_code == SourceStatus.ACTIVE:
+    if db_source.status_code == SourceStatus.ACTIVE:
         source_processor_client.remove(id)
     await crud.sources.update_status(session, id, SourceStatus.FINISHED)
 
@@ -301,8 +298,8 @@ async def update_status(session: SessionDep,
     - **id**: source id
     """
     user_id = None if user_role == UserRole.ADMIN else user_id
-    source = await crud.sources.read(session, id, user_id)
-    if source is None:
+    db_source = await crud.sources.read(session, id, user_id)
+    if db_source is None:
         raise HTTPException(status_code=404, detail="Source not found")
     await crud.sources.update_status(session, id, status, status_msg)
 
@@ -321,14 +318,14 @@ async def delete(session: SessionDep,
     If source was created from file, it will be deleted from disk.
     """
     user_id = None if user_role == UserRole.ADMIN else user_id
-    source = await crud.sources.read(session, id, user_id)
-    if source is None:
+    db_source = await crud.sources.read(session, id, user_id)
+    if db_source is None:
         raise HTTPException(status_code=404, detail="Source not found")
-    if source.status_code == SourceStatus.ACTIVE:
+    if db_source.status_code == SourceStatus.ACTIVE:
         source_processor_client.remove(id)
     await crud.sources.delete(session, id)  # Chunks are deleted by cascade
-    if source.url.startswith('file://'):  # Delete source file if local
-        path = Path(source.url[7:])
+    if db_source.url.startswith('file://'):  # Delete source file if local
+        path = Path(db_source.url[7:])
         path.unlink()
     source_dir = settings.chunks_dir / str(id)
     if source_dir.is_dir():

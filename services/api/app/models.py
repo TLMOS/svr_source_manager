@@ -1,14 +1,8 @@
-from enum import IntEnum
-
 from sqlalchemy import Column, Integer, Float, String, ForeignKey
 from sqlalchemy.orm import relationship
 
+from common.constants import UserRole, SourceStatus
 from .database import Base
-
-
-class UserRole(IntEnum):
-    USER = 0
-    ADMIN = 1
 
 
 class User(Base):
@@ -24,20 +18,13 @@ class User(Base):
                            cascade='all, delete')
 
 
-class SourceStatus(IntEnum):
-    ACTIVE = 0
-    PAUSED = 1
-    FINISHED = 2
-    ERROR = 3
-
-
 class Source(Base):
     __tablename__ = 'source'
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True, nullable=False)
     url = Column(String)
-    status_code = Column(Integer, nullable=False)
+    status_code = Column(Integer, default=SourceStatus.PAUSED, nullable=False)
     status_msg = Column(String, nullable=True)
     user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 

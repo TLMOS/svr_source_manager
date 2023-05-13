@@ -1,5 +1,46 @@
 version: "3.9"
+
 services:
+  db:
+    image: postgres:15.2-alpine
+    container_name: svr_core_db
+    env_file: ./.env
+    environment:
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - ./postgresql/init:/docker-entrypoint-initdb.d
+      - ./postgresql/data:/var/lib/postgresql/data
+    restart: unless-stopped
+  web:
+    build: ./services/web
+    container_name: svr_core_web
+    env_file: ./.env
+    volumes:
+      - ./common:/home/common
+      - ./static:/home/app/static
+    restart: unless-stopped
+    depends_on:
+      - db
+  api:
+    build: ./services/api
+    container_name: svr_core_api
+    env_file: ./.env
+    volumes:
+      - ./common:/home/common
+      - ./videos:/home/videos
+    restart: unless-stopped
+    depends_on:
+      - db
+  source_processor:
+    build: ./services/source_processor
+    container_name: svr_core_source_processor
+    env_file: ./.env
+    volumes:
+      - ./common:/home/common
+      - ./videos:/home/videos
+    restart: unless-stopped
+    depends_on:
+      - api
   nginx:
     build: ./services/nginx
     container_name: svr_core_nginx
@@ -7,58 +48,6 @@ services:
       - ./static:/www/web/static
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - 8080:8080
     depends_on:
       - web
-  db:
-    image: postgres:15.2-alpine
-    container_name: svr_core_db
-    env_file: ./.env
-    environment:
-      POSTGRES_PASSWORD_FILE: "/run/secrets/postgres_password"
-      PGDATA: "/var/lib/postgresql/data/pgdata"
-    volumes:
-      - ./postgresql/init:/docker-entrypoint-initdb.d
-      - ./postgresql/data:/var/lib/postgresql/data
-    restart: unless-stopped
-    secrets:
-      - postgres_password
-  api:
-    build: ./services/api
-    container_name: svr_core_api
-    env_file: ./.env
-    volumes:
-      - ./videos:/home/videos
-    restart: unless-stopped
-    expose:
-      - 8000
-    depends_on:
-      - db
-    secrets:
-      - postgres_password
-  source_processor:
-    build: ./services/source_processor
-    container_name: svr_core_source_processor
-    env_file: ./.env
-    volumes:
-      - ./videos:/home/videos
-    restart: unless-stopped
-    expose:
-      - 8001
-    depends_on:
-      - api
-  web:
-    build: ./services/web
-    container_name: svr_core_web
-    env_file: ./.env
-    volumes:
-      - ./static:/home/app/static
-    restart: unless-stopped
-    depends_on:
-      - db
-    expose:
-      - 5000
-
-secrets:
-  postgres_password:
-    file: ./secrets/postgres_password

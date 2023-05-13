@@ -2,7 +2,8 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Source, SourceStatus
+from common.constants import SourceStatus
+from app.models import Source
 
 
 def filter_by_user(statement, user_id: int | None) -> None:
@@ -15,12 +16,16 @@ def filter_by_user(statement, user_id: int | None) -> None:
 async def create(session: AsyncSession, name: str, url: str,
                  user_id: int) -> Source:
     """Create source in the database."""
-    source = Source(name=name, url=url, status_code=SourceStatus.PAUSED.value,
-                    user_id=user_id)
-    session.add(source)
+    db_source = Source(
+        name=name,
+        url=url,
+        status_code=SourceStatus.PAUSED.value,
+        user_id=user_id
+    )
+    session.add(db_source)
     await session.commit()
-    await session.refresh(source)
-    return source
+    await session.refresh(db_source)
+    return db_source
 
 
 async def read(session: AsyncSession, id: int,
@@ -58,16 +63,16 @@ async def read_non_finished(session: AsyncSession,
 async def update_status(session: AsyncSession, id: int, status: SourceStatus,
                         status_msg: str = None) -> Source:
     """Update source status and status message."""
-    source = await read(session, id)
-    source.status_code = status.value
-    source.status_msg = status_msg
+    db_source = await read(session, id)
+    db_source.status_code = status.value
+    db_source.status_msg = status_msg
     await session.commit()
-    return source
+    return db_source
 
 
 async def delete(session: AsyncSession, id: int) -> Source:
     """Delete source from the database."""
-    source = await read(session, id)
-    await session.delete(source)
+    db_source = await read(session, id)
+    await session.delete(db_source)
     await session.commit()
-    return source
+    return db_source

@@ -27,14 +27,14 @@
     <div class="card-body p-0 m-0">
         <table class="table object-list m-0" style="width: 100%;">
             <tbody>
-                {% for source in sources %}
+                {% for source, status in sources_with_status %}
                 <tr onclick="window.location.href='{{ url_for('sources.source', id=source['id']) }}'">
                     <td>{{ source.name }}</td>
                     <td class="status">
-                        <span class="{{ source.status.lower() }}">{{ source.status }}</span>
+                        <span class="{{ status.lower() }}">{{ status }}</span>
                     </td>
                     <td>
-                        {% if source.status != 'Finished' %}
+                        {% if status != 'Finished' %}
                         <form action="{{ url_for('sources.finish', id=source['id']) }}" method="POST">
                             <button type="submit" class="btn-icon">
                                 <i class="fa-solid fa-box-archive"></i>
@@ -43,19 +43,19 @@
                         {% endif %}
                     </td>
                     <td>
-                        {% if source.status == 'Active' %}
+                        {% if status == 'Active' %}
                         <form action="{{ url_for('sources.pause', id=source['id'])}}" method="POST">
                             <button type="submit" class="btn-icon">
                                 <i class="fa-solid fa-pause"></i>
                             </button>
                         </form>
-                        {% elif source.status == 'Paused' %}
+                        {% elif status == 'Paused' %}
                         <form action="{{ url_for('sources.start', id=source['id']) }}" method="POST">
                             <button type="submit" class="btn-icon">
                                 <i class="fa-solid fa-play"></i>
                             </button>
                         </form>
-                        {% elif source.status == 'Error' %}
+                        {% elif status == 'Error' %}
                         <form action="{{ url_for('sources.start', id=source['id']) }}" method="POST">
                             <button type="submit" class="btn-icon">
                                 <i class="fa-solid fa-play"></i>

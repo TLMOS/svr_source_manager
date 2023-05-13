@@ -1,18 +1,16 @@
-import os
 from pathlib import Path
-from pydantic import BaseModel
+from pydantic import BaseSettings
 
 
 basedir = Path(__file__).parent.parent.absolute()
 
 
-class Settings(BaseModel):
+class Settings(BaseSettings):
     # Flask settings
-    SECRET_KEY: str = os.urandom(24)
-    MAX_CONTENT_LENGTH: int = 16 * 1024 * 1024
+    SECRET_KEY: str
 
-    # Core API settings
-    api_url: str = 'http://api:8000'
+    # Service urls
+    api_url: str
 
     # Filesystem settings
     static_folder = (basedir / 'static')
@@ -20,6 +18,7 @@ class Settings(BaseModel):
 
 
 settings = Settings()
+
 settings.static_folder = settings.static_folder.resolve().absolute()
 settings.media_folder = settings.media_folder.resolve().absolute()
 settings.static_folder.mkdir(exist_ok=True)

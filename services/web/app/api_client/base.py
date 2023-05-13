@@ -37,14 +37,14 @@ class Router:
                 'X-User-Id': str(current_user.id),
                 'X-User-Role': str(current_user.role.value)
             }
-        response = requests.request(
-            method=method,
-            url=f'{settings.api_url}/{self.prefix}/{route}',
-            params=params,
-            json=json,
-            headers=headers
-        )
+        url = f'{settings.api_url}/{self.prefix}/{route}'
+        try:
+            response = requests.request(method, url, params=params, json=json,
+                                        headers=headers)
+        except requests.exceptions.ConnectionError as e:
+            raise HTTPError(url=url, code=404, msg=e, hdrs={}, fp=None)
         if response.status_code != 200:
+            print(response.url, response.headers)
             raise HTTPError(
                 url=response.url,
                 code=response.status_code,

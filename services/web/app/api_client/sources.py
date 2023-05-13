@@ -1,5 +1,5 @@
+from common.schemas import Source
 from app.api_client.base import Router
-from app.schemas import Source, SOURCE_STATUS_TO_STR
 
 
 route = Router('sources', authorized=True)
@@ -16,17 +16,12 @@ def creare_from_file(name: str, file: bytes) -> dict:
 
 
 def get(id: int) -> Source:
-    source = Source(**route.request('GET', f'get/{id}').json())
-    source.status = SOURCE_STATUS_TO_STR[source.status_code]
-    return source
+    return Source(**route.request('GET', f'get/{id}').json())
 
 
 def get_all() -> list[Source]:
     sources = route.request('GET', 'get/all').json()
-    sources = [Source(**source) for source in sources]
-    for source in sources:
-        source.status = SOURCE_STATUS_TO_STR[source.status_code]
-    return sources
+    return [Source(**source) for source in sources]
 
 
 def get_frame(id: int) -> bytes:

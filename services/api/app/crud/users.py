@@ -1,18 +1,17 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common import schemas
 from app.models import User
-from app import schemas
 
 
-async def create(session: AsyncSession,
-                 user_schema: schemas.UserCreate) -> User:
+async def create(session: AsyncSession, user: schemas.UserCreate) -> User:
     """Create user in the database."""
-    user = User(**user_schema.dict())
-    session.add(user)
+    db_user = User(**user.dict())
+    session.add(db_user)
     await session.commit()
-    await session.refresh(user)
-    return user
+    await session.refresh(db_user)
+    return db_user
 
 
 async def read(session: AsyncSession, id: int) -> User:
@@ -35,7 +34,7 @@ async def read_by_name(session: AsyncSession, name: str) -> User:
 
 async def delete(session: AsyncSession, id: int) -> User:
     """Delete user from the database."""
-    user = await read(session, id)
-    await session.delete(user)
+    db_user = await read(session, id)
+    await session.delete(db_user)
     await session.commit()
-    return user
+    return db_user

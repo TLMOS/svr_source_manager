@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
-from app import crud, schemas, security
+from common import schemas
+from app import crud, security
 from app.dependencies import SessionDep
 
 router = APIRouter(
@@ -16,19 +17,18 @@ router = APIRouter(
     response_description="User created"
 )
 async def create(session: SessionDep,
-                 user_schema: schemas.UserCreate):
+                 user: schemas.UserCreate):
     """
     Create user.
 
     Parameters:
     - **user**: user data
     """
-    user = await crud.users.read_by_name(session, user_schema.name)
-    if user is not None:
+    db_user = await crud.users.read_by_name(session, user.name)
+    if db_user is not None:
         raise HTTPException(status_code=400, detail="Username already exists")
-    user_schema.password = security.get_password_hash(user_schema.password)
-    user = await crud.users.create(session, user_schema)
-    return user
+    user.password = security.get_password_hash(user.password)
+    return await crud.users.create(session, user)
 
 
 @router.post(
@@ -47,9 +47,9 @@ async def verify(session: SessionDep,
     - **name**: user name
     - **password**: user password
     """
-    user = await crud.users.read_by_name(session, name)
-    if user and security.verify_password(password, user.password):
-        return user
+    db_user = await crud.users.read_by_name(session, name)
+    if db_user and security.verify_password(password, db_user.password):
+        return db_user
 
 
 @router.get(
@@ -66,10 +66,10 @@ async def get(session: SessionDep,
     Parameters:
     - **id**: user id
     """
-    user = await crud.users.read(session, id)
-    if user is None:
+    db_user = await crud.users.read(session, id)
+    if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    return user
+    return db_user
 
 
 @router.get(
@@ -96,7 +96,7 @@ async def delete(session: SessionDep,
     Parameters:
     - **id**: user id
     """
-    user = await crud.users.read(session, id)
-    if user is None:
+    db_user = await crud.users.read(session, id)
+    if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return await crud.users.delete(session, id)

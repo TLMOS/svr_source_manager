@@ -7,10 +7,10 @@
         <img src="data:image/png;base64,{{ frame }}" class="img-fluid rounded" alt="Responsive image">
     </div>
     {% endif %}
-    <div class="card-body status-{{ source.status.lower() }} ">
+    <div class="card-body status-{{ status.lower() }} ">
         <b>Name:</b> {{ source.name }}<br>
         <b>URL:</b> {{ source.url }}<br>
-        <b>Status:</b> {{ source.status }}<br>
+        <b>Status:</b> {{ status }}<br>
         <b>Status message:</b> {{ source.status_msg }}<br>
     </div>
     <div class="card-footer">

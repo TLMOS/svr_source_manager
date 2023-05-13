@@ -1,11 +1,11 @@
-FROM python:3.10.11-slim-buster
+FROM python:3.10-alpine
 
-RUN addgroup --system app && adduser --system --group app
+RUN addgroup -S app && adduser -S app -G app
 
 WORKDIR /home
 
-RUN apt-get update \
-    && apt-get -y install gcc
+RUN apk add python3-dev build-base linux-headers pcre-dev  && \
+    apk --no-cache add musl-dev linux-headers g++
 
 RUN pip install uwsgi
 
@@ -18,5 +18,7 @@ COPY . $APP_HOME
 RUN chown -R app:app /home
 
 USER app
+
+EXPOSE 5000
 
 CMD ["uwsgi", "--ini", "uwsgi.ini", "--http", "0.0.0.0:5000"]

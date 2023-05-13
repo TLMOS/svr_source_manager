@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
-from app import crud, schemas
+from common import schemas
+from app import crud
 from app.dependencies import SessionDep
 
 
@@ -17,15 +18,14 @@ router = APIRouter(
     response_description="Chunk created"
 )
 async def create_chunk(session: SessionDep,
-                       chunk_schema: schemas.VideoChunkCreate):
+                       chunk: schemas.VideoChunkCreate):
     """
     Create video chunk record.
 
     Parameters:
     - **chunk**: video chunk create schema.
     """
-    source = await crud.sources.read(session, chunk_schema.source_id)
-    if source is None:
+    db_source = await crud.sources.read(session, chunk.source_id)
+    if db_source is None:
         raise HTTPException(status_code=404, detail="Source not found")
-    chunk = await crud.video_chunks.create(session, chunk_schema)
-    return chunk
+    return await crud.video_chunks.create(session, chunk)

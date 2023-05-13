@@ -3,6 +3,9 @@ from pathlib import Path
 from pydantic import BaseSettings
 
 
+basedir = Path(__file__).parent.parent.absolute()
+
+
 class Settings(BaseSettings):
     # Postgres settings
     pguser: str = 'postgres'
@@ -12,8 +15,8 @@ class Settings(BaseSettings):
     postgres_port: int = 5432
     postgres_url: str = None
 
-    # Source processor settings
-    source_processor_url: str = 'http://source_processor:8001'
+    # Service urls
+    source_processor_url: str
 
     # Authorization settings
     admin_create: bool = True
@@ -21,12 +24,9 @@ class Settings(BaseSettings):
     admin_password: str = 'admin'
 
     # File system settings
-    chunks_dir: Path = Path('./videos/chunks')
-    sources_dir: Path = Path('./videos/sources')
+    chunks_dir: Path = basedir / 'videos/chunks'
+    sources_dir: Path = basedir / 'videos/sources'
     tmp_dir: Path = Path('./tmp')
-
-    class Config:
-        secrets_dir = '/run/secrets'
 
 
 settings = Settings()

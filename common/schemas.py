@@ -1,7 +1,7 @@
 """Pydantic schemas for the data server."""
 
 from pydantic import BaseModel
-from app.models import UserRole, SourceStatus
+from common.constants import UserRole, SourceStatus
 
 
 class UserBase(BaseModel):

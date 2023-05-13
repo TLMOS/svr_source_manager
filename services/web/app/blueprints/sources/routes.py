@@ -6,10 +6,12 @@ import base64
 from flask import request, session
 from flask_login import login_required
 
+from common.constants import SOURCE_STATUS_TO_STR
+from common.constants import SourceStatus
 from app.blueprints.sources import bp
 from app import api_client
-from app.schemas import SourceStatus
-from app.utils import float_to_color, action, render
+from app.logic import action, render
+from app.utils import float_to_color
 
 
 @bp.before_request
@@ -33,13 +35,14 @@ def index():
         sources = [s for s in sources if search_entry in s.name]
     sources.sort(key=lambda s: s.name)
     sources.sort(key=lambda s: s.status_code != SourceStatus.ACTIVE)
+    statuses = [SOURCE_STATUS_TO_STR[s.status_code] for s in sources]
 
     session['sources.index'] = {
         'search_entry': search_entry,
         'show_finished': show_finished
     }
     return {
-        'sources': sources
+        'sources_with_status': zip(sources, statuses)
     }
 
 
@@ -79,6 +82,7 @@ def delete(id: int):
 @render(template='sources/source.html')
 def source(id: int):
     source = api_client.sources.get(id)
+    status = SOURCE_STATUS_TO_STR[source.status_code]
 
     try:
         frame = api_client.sources.get_frame(id)
@@ -110,6 +114,7 @@ def source(id: int):
 
     return {
         'source': source,
+        'status': status,
         'frame': frame,
         'calendar': calendar,
     }

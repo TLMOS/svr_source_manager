@@ -5,17 +5,19 @@ from pydantic import BaseSettings
 
 
 class Settings(BaseSettings):
-    # File system settings
-    chunks_dir: Path = Path('./videos/chunks')
-
-    # Core API settings
-    api_url: str = 'http://api:8000'
+    # Service urls
+    api_url: str = ''
 
     # Video settings
     frame_size: tuple[int, int] = (640, 480)
     chunk_duration: float = 60
     chunk_fps: float = 1
+    capture_max_retries: int = 5
+    capture_retries_interval: float = 0.1
     draw_timestamp: bool = True
+
+    # File system settings
+    chunks_dir: Path = Path('./videos/chunks')
 
     class Config:
         @classmethod

@@ -3,6 +3,7 @@ Module for capturing frames from source url and writing them into video chunks
 """
 
 import asyncio
+import aiohttp
 from abc import ABC, abstractmethod
 from pathlib import Path
 import time
@@ -12,14 +13,14 @@ import urllib.request
 import numpy as np
 import cv2
 
+from common.constants import SourceStatus
+from common.schemas import Source, VideoChunkCreate
 from app.config import settings
-from app.schemas import SourceStatus
-from app import schemas
 from app import api_client
 
 
 VIDEO_EXTENSIONS = ['mp4', 'avi']
-VIDEO_STREAM_EXTENSIONS = ['mjpg']
+STREAM_EXTENSIONS = ['mjpg']
 IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg']
 
 
@@ -36,7 +37,12 @@ class SourceCapture(ABC):
         pass
 
     @abstractmethod
-    def read(self) -> np.ndarray:
+    def has_next(self) -> bool:
+        """Check if there is next frame"""
+        pass
+
+    @abstractmethod
+    async def read(self) -> np.ndarray:
         """Read next frame from source"""
         pass
 
@@ -44,90 +50,91 @@ class SourceCapture(ABC):
 class ImageCapture(SourceCapture):
     """Context manager for capturing frames from image url"""
 
-    def read(self) -> np.ndarray:
+    def has_next(self) -> bool:
+        return True
+
+    async def read(self) -> np.ndarray:
         response = urllib.request.urlopen(self.url)
         if self.url.startswith('http') and response.code != 200:
             raise ValueError('Can not read next frame')
         arr = np.asarray(bytearray(response.read()), dtype=np.uint8)
         img = cv2.imdecode(arr, -1)
-        img = cv2.resize(img, settings.frame_size)
         return img
 
 
 class VideoCapture(SourceCapture):
     """
     Context manager for capturing frames from video url.
-    Works with video files and video streams.
     Makes sure that video is opened and closed correctly.
     """
 
-    def __init__(self, url: str, is_stream: bool = False):
-        super().__init__(url)
-        self._frames_total = None
-        self.source_fps = None
-        self._cap = None
-        self._frames_read = 0
+    _cap: cv2.VideoCapture | None = None
+    _frames_read: int = 0
+    _frames_total: int | None = None
+    _fps: float | None = None
+    _skip_frames: int | None = None
 
     def __enter__(self):
         self._cap = cv2.VideoCapture(self.url)
-        if self._cap is None or not self._cap.isOpened():
+        if self._cap.isOpened():
+            self._frames_read = 0
+            self._frames_total = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            self._fps = self._cap.get(cv2.CAP_PROP_FPS)
+            self._skip_frames = max(0, int(self._fps / settings.chunk_fps) - 1)
+            return self
+        else:
             raise ValueError('Can not open video capture')
-        self._frames_total = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self._frames_total = max(0, self._frames_total)
-        self.source_fps = self._cap.get(cv2.CAP_PROP_FPS)
-        return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._cap.release()
 
-    @property
-    def frames_read(self) -> int:
-        return self._frames_read
-
-    @frames_read.setter
-    def frames_read(self, value: int):
-        if self._cap is None:
-            raise ValueError('Can be set only in context manager')
-        self._frames_read = value
-        self._cap.set(cv2.CAP_PROP_POS_FRAMES, value)
-
     def has_next(self) -> bool:
-        """Check if there is next frame"""
-        if self._cap is None:
-            raise ValueError('Can be checked only in context manager')
-        if self._frames_total:
-            return self._frames_read < self._frames_total
-        else:
-            return True
+        return self._frames_read < self._frames_total
 
-    def skip(self, amount: int):
-        """Skip amount of frames"""
-        self._frames_read += amount
-
-    def read(self, max_retries=5) -> np.ndarray:
-        """
-        Read next frame from source.
-        If source is not stream and there is no next frame, returns None.
-        """
+    async def read(self) -> np.ndarray:
+        if self._skip_frames and self._frames_read:
+            self._frames_read += self._skip_frames
+            self._cap.set(cv2.CAP_PROP_POS_FRAMES, self._frames_read - 1)
         ret, frame = self._cap.read()
-        attempt = 1
-        while not ret and attempt < max_retries:
-            time.sleep(0.1)
-            ret, frame = self._cap.read()
-            attempt += 1
+        self._frames_read += 1
         if ret:
-            frame = cv2.resize(frame, settings.frame_size)
-            self._frames_read += 1
             return frame
         else:
             raise ValueError('Can not read next frame')
 
 
+class StreamCapture(SourceCapture):
+    """
+    Context manager for capturing frames from mjpg stream.
+    """
+
+    _frame_byte_size: int = 1024
+
+    def has_next(self) -> bool:
+        return True
+
+    async def read(self) -> np.ndarray:
+        content_length = None
+        bytes = b''
+        async with aiohttp.ClientSession() as session:
+            async with session.get(self.url) as resp:
+                async for line in resp.content:
+                    if content_length is not None:
+                        if len(bytes) < content_length:
+                            bytes += line
+                        else:
+                            jpg = bytes[2:-2]
+                            frame = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                            return frame
+                    elif b'Content-Length' in line:
+                        content_length = int(line.split()[1])
+
+
 def open_source(url: str) -> SourceCapture:
     """Get frame capturing context manager for source url"""
     extension = url.lower().split('?')[0].split('.')[-1]
-    if extension in VIDEO_STREAM_EXTENSIONS:
-        return VideoCapture(url, is_stream=True)
+    if extension in STREAM_EXTENSIONS:
+        return StreamCapture(url)
     elif extension in VIDEO_EXTENSIONS:
         return VideoCapture(url)
     elif extension in IMAGE_EXTENSIONS:
@@ -191,7 +198,7 @@ class ChunkWriter(VideoWriter):
         end_time = time.time()
         super().__exit__(exc_type, exc_value, traceback)
         if not self._is_empty and exc_type is None:
-            chunk = schemas.VideoChunkCreate(
+            chunk = VideoChunkCreate(
                 source_id=self.source_id,
                 file_path=str(self.path),
                 start_time=self.start_time,
@@ -236,7 +243,7 @@ class SourceProcessor:
         for source in api_client.get_all_active_sources():
             self.add(source)
 
-    async def process(self, source: schemas.Source):
+    async def process(self, source: Source):
         """
         Get frames from source and write them into video chunks.
         Create video files and database records.
@@ -250,10 +257,6 @@ class SourceProcessor:
         status, status_msg = SourceStatus.FINISHED, None
         try:
             with open_source(source.url) as cap:
-                if cap.source_fps and cap.source_fps > fps:
-                    skip_frames = int(cap.source_fps / fps) - 1
-                else:
-                    skip_frames = 0
                 while cap.has_next():
                     chunk_path = save_dir / f'{chunks_count}.mp4'
                     async with ChunkWriter(source.id, chunk_path) as writer:
@@ -261,9 +264,8 @@ class SourceProcessor:
                             if not cap.has_next():
                                 break
                             read_time = time.time()
-                            frame = cap.read()
-                            if skip_frames:  # Skip frames to match CHUNK_FPS
-                                cap.skip(skip_frames)
+                            frame = await cap.read()
+                            frame = cv2.resize(frame, settings.frame_size)
                             if settings.draw_timestamp:
                                 frame = add_timestamp(frame, read_time)
                             writer.write(frame)
@@ -287,7 +289,7 @@ class SourceProcessor:
         self._tasks.pop(source.id)
         self._frames.pop(source.id)
 
-    def add(self, source: schemas.Source):
+    def add(self, source: Source):
         """Start processing source in background task."""
         if source.id not in self._tasks:
             self._tasks[source.id] = asyncio.create_task(
