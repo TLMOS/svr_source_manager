@@ -325,9 +325,11 @@ async def delete(session: SessionDep,
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
     if source.status_code == SourceStatus.ACTIVE:
-        await source.remove(id)
+        source_processor_client.remove(id)
     await crud.sources.delete(session, id)  # Chunks are deleted by cascade
     if source.url.startswith('file://'):  # Delete source file if local
         path = Path(source.url[7:])
         path.unlink()
-    shutil.rmtree(settings.chunks_dir / str(id))  # Delete video chunks
+    source_dir = settings.chunks_dir / str(id)
+    if source_dir.is_dir():
+        shutil.rmtree(source_dir)  # Delete video chunks

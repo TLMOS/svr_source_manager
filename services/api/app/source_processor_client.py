@@ -20,12 +20,11 @@ def base_reqest(method: str,
         route: Route to send request to.
         params: Params to send with request.
     """
-    response = requests.request(
-        method=method,
-        url=f'{settings.source_processor_url}/{route}',
-        params=params,
-        json=json
-    )
+    url = f'{settings.source_processor_url}/{route}'
+    try:
+        response = requests.request(method, url, params=params, json=json)
+    except requests.exceptions.ConnectionError as e:
+        raise HTTPException(status_code=404, detail=e.strerror)
     if response.status_code != 200:
         raise HTTPException(
             response.status_code,
