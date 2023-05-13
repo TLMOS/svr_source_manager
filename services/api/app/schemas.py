@@ -50,12 +50,19 @@ class Source(BaseModel):
         }
 
 
-class VideoChunk(BaseModel):
-    id: int
+class VideoChunkBase(BaseModel):
     source_id: int
     file_path: str
     start_time: float
     end_time: float
+
+
+class VideoChunkCreate(VideoChunkBase):
+    pass
+
+
+class VideoChunk(VideoChunkBase):
+    id: int
 
     class Config:
         orm_mode = True

@@ -22,7 +22,7 @@ class Router:
                 authorized: bool | None = None
                 ) -> requests.Response:
         """
-        Send request to data server.
+        Send request to core api.
 
         Args:
             method: HTTP method.

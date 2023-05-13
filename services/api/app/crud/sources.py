@@ -33,21 +33,13 @@ async def read(session: AsyncSession, id: int,
 
 
 async def read_all(session: AsyncSession,
+                   status: SourceStatus | None = None,
                    user_id: int | None = None) -> list[Source]:
     """Read all sources from the database."""
     statement = select(Source)
     statement = filter_by_user(statement, user_id)
-    result = await session.execute(statement)
-    return result.scalars().all()
-
-
-async def read_active(session: AsyncSession,
-                      user_id: int | None = None) -> list[Source]:
-    """Read all active sources from the database."""
-    statement = select(Source).filter(
-        Source.status_code == SourceStatus.ACTIVE
-    )
-    statement = filter_by_user(statement, user_id)
+    if status is not None:
+        statement = statement.filter(Source.status_code == status)
     result = await session.execute(statement)
     return result.scalars().all()
 

@@ -34,6 +34,17 @@ services:
       - db
     secrets:
       - postgres_password
+  source_processor:
+    build: ./services/source_processor
+    container_name: svr_core_source_processor
+    env_file: ./.env
+    volumes:
+      - ./videos:/home/videos
+    restart: unless-stopped
+    expose:
+      - 8001
+    depends_on:
+      - api
   web:
     build: ./services/web
     container_name: svr_core_web

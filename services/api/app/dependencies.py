@@ -7,8 +7,6 @@ from fastapi import Depends, Header
 
 from app.config import settings
 from app.database import async_session_factory
-from app.video_processing import SourceProcessor
-from app import crud
 
 
 # Temporary file path dependency
@@ -41,39 +39,20 @@ async def get_session() -> AsyncSession:
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
-# Source processor dependency
-
-
-source_processor = None
-
-
-async def get_source_processor() -> SourceProcessor:
-    """FastAPI dependency to get a source processor"""
-    global source_processor
-    if source_processor is None:
-        source_processor = SourceProcessor()
-        async with async_session_factory() as session:
-            active_sources = await crud.sources.read_active(session)
-            for source in active_sources:
-                source_processor.add(source)
-    yield source_processor
-
-
-SourceProcessorDep = Annotated[SourceProcessor, Depends(get_source_processor)]
-
-
 # Extract user id and role from header dependency
 
 
-async def get_user_id(x_user_id: Annotated[int, Header()]):
+async def get_user_id(x_user_id: Annotated[int | None, Header()] = None):
     """FastAPI dependency to get user id from header"""
-    return int(x_user_id)
+    if x_user_id is not None:
+        return int(x_user_id)
 
 
-async def get_user_role(x_user_role: Annotated[str, Header()]):
+async def get_user_role(x_user_role: Annotated[int | None, Header()] = None):
     """FastAPI dependency to get user role from header"""
-    return int(x_user_role)
+    if x_user_role is not None:
+        return int(x_user_role)
 
 
 UserIdDep = Annotated[int | None, Depends(get_user_id)]
-UserRoleDep = Annotated[str | None, Depends(get_user_role)]
+UserRoleDep = Annotated[int | None, Depends(get_user_role)]

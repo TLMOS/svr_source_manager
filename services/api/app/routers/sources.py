@@ -4,13 +4,11 @@ import re
 import shutil
 
 from fastapi import APIRouter, HTTPException, UploadFile, Response
-import cv2
 
 from app.config import settings
-from app import crud, schemas
+from app import crud, schemas, source_processor_client
 from app.models import SourceStatus, UserRole
-from app.dependencies import SourceProcessorDep, SessionDep, UserIdDep
-from app.dependencies import UserRoleDep
+from app.dependencies import SessionDep, UserIdDep, UserRoleDep
 
 
 router = APIRouter(
@@ -122,12 +120,18 @@ async def get(session: SessionDep,
 )
 async def get_all(session: SessionDep,
                   user_id: UserIdDep,
-                  user_role: UserRoleDep):
+                  user_role: UserRoleDep,
+                  status: SourceStatus | None = None):
     """
     Get list of all sources.
+
+    Params:
+    Parameters:
+    - **status**: (optional) If specified, will return only sources with
+                  given status
     """
     user_id = None if user_role == UserRole.ADMIN else user_id
-    sources = await crud.sources.read_all(session, user_id)
+    sources = await crud.sources.read_all(session, status, user_id)
     return sources
 
 
@@ -155,7 +159,6 @@ async def get_non_finished(session: SessionDep,
     response_class=Response
 )
 async def get_frame(session: SessionDep,
-                    source_processor: SourceProcessorDep,
                     user_id: UserIdDep,
                     user_role: UserRoleDep,
                     id: int):
@@ -173,11 +176,8 @@ async def get_frame(session: SessionDep,
     )
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
-    frame = await source_processor.get_frame(id)
-    if frame is None:
-        raise HTTPException(status_code=404, detail="Frame not found")
-    _, buffer = cv2.imencode('.jpg', frame)
-    return Response(content=buffer.tobytes(), media_type="image/jpeg")
+    frame = source_processor_client.get_frame(id)
+    return Response(content=frame, media_type="image/jpeg")
 
 
 @router.get(
@@ -208,7 +208,6 @@ async def get_time_coverage(session: SessionDep,
     summary="Start source"
 )
 async def start(session: SessionDep,
-                source_processor: SourceProcessorDep,
                 user_id: UserIdDep,
                 user_role: UserRoleDep,
                 id: int):
@@ -229,7 +228,7 @@ async def start(session: SessionDep,
     if source.status_code == SourceStatus.ACTIVE:
         raise HTTPException(status_code=400, detail="Source already active")
     await crud.sources.update_status(session, id, SourceStatus.ACTIVE)
-    source_processor.add(source)
+    source_processor_client.add(source)
 
 
 @router.put(
@@ -237,7 +236,6 @@ async def start(session: SessionDep,
     summary="Pause source"
 )
 async def pause(session: SessionDep,
-                source_processor: SourceProcessorDep,
                 user_id: UserIdDep,
                 user_role: UserRoleDep,
                 id: int):
@@ -255,9 +253,7 @@ async def pause(session: SessionDep,
         raise HTTPException(status_code=400, detail="Source not active")
     if source.status_code == SourceStatus.FINISHED:
         raise HTTPException(status_code=400, detail="Source already finished")
-    print(source_processor.tasks)
-    await source_processor.remove(id)
-    print(source_processor.tasks)
+    source_processor_client.remove(id)
     await crud.sources.update_status(session, id, SourceStatus.PAUSED)
 
 
@@ -266,7 +262,6 @@ async def pause(session: SessionDep,
     summary="Finish source"
 )
 async def finish(session: SessionDep,
-                 source_processor: SourceProcessorDep,
                  user_id: UserIdDep,
                  user_role: UserRoleDep,
                  id: int):
@@ -285,8 +280,31 @@ async def finish(session: SessionDep,
     if source.status_code == SourceStatus.FINISHED:
         raise HTTPException(status_code=400, detail="Source already finished")
     if source.status_code == SourceStatus.ACTIVE:
-        await source_processor.remove(id)
+        source_processor_client.remove(id)
     await crud.sources.update_status(session, id, SourceStatus.FINISHED)
+
+
+@router.put(
+    "/update_status",
+    summary="Update source status"
+)
+async def update_status(session: SessionDep,
+                        user_id: UserIdDep,
+                        user_role: UserRoleDep,
+                        id: int,
+                        status: SourceStatus,
+                        status_msg: str = None):
+    """
+    Update source status and status message.
+
+    Parameters:
+    - **id**: source id
+    """
+    user_id = None if user_role == UserRole.ADMIN else user_id
+    source = await crud.sources.read(session, id, user_id)
+    if source is None:
+        raise HTTPException(status_code=404, detail="Source not found")
+    await crud.sources.update_status(session, id, status, status_msg)
 
 
 @router.delete(
@@ -294,7 +312,6 @@ async def finish(session: SessionDep,
     summary="Delete source"
 )
 async def delete(session: SessionDep,
-                 source_processor: SourceProcessorDep,
                  user_id: UserIdDep,
                  user_role: UserRoleDep,
                  id: int):
@@ -308,7 +325,7 @@ async def delete(session: SessionDep,
     if source is None:
         raise HTTPException(status_code=404, detail="Source not found")
     if source.status_code == SourceStatus.ACTIVE:
-        await source_processor.remove(id)
+        await source.remove(id)
     await crud.sources.delete(session, id)  # Chunks are deleted by cascade
     if source.url.startswith('file://'):  # Delete source file if local
         path = Path(source.url[7:])

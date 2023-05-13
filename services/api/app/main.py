@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse
 
 from app.database import async_session_factory
 from app.config import settings
-from app.routers import users, sources
+from app.routers import users, sources, videos
 from app import crud, schemas, security
 
 
@@ -15,6 +15,10 @@ tags_metadata = [
     {
         "name": "Source management",
         "description": "Manage video sources."
+    },
+    {
+        "name": "Video managment",
+        "description": "Retrieve video data and manage video chunks"
     }
 ]
 
@@ -41,6 +45,7 @@ app = FastAPI(
 
 app.include_router(users.router)
 app.include_router(sources.router)
+app.include_router(videos.router)
 
 
 @app.on_event("startup")

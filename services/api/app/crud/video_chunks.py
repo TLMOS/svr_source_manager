@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import VideoChunk, Source
+from app import schemas
 
 
 def filter_by_user(statement, user_id: int | None) -> None:
@@ -13,11 +14,10 @@ def filter_by_user(statement, user_id: int | None) -> None:
     return statement
 
 
-async def create(session: AsyncSession, file_path: str, start_time: float,
-                 end_time: float, source_id: int) -> VideoChunk:
+async def create(session: AsyncSession,
+                 chunk_schema: schemas.VideoChunkCreate) -> VideoChunk:
     """Create video chunk in the database."""
-    chunk = VideoChunk(file_path=file_path, start_time=start_time,
-                       end_time=end_time, source_id=source_id)
+    chunk = VideoChunk(**chunk_schema.dict())
     session.add(chunk)
     await session.commit()
     await session.refresh(chunk)

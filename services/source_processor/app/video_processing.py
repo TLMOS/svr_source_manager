@@ -13,9 +13,9 @@ import numpy as np
 import cv2
 
 from app.config import settings
-from app.database import async_session_factory
-from app.models import SourceStatus
-from app import crud, models
+from app.schemas import SourceStatus
+from app import schemas
+from app import api_client
 
 
 VIDEO_EXTENSIONS = ['mp4', 'avi']
@@ -63,18 +63,17 @@ class VideoCapture(SourceCapture):
 
     def __init__(self, url: str, is_stream: bool = False):
         super().__init__(url)
-        self.frames_total = None
+        self._frames_total = None
         self.source_fps = None
         self._cap = None
         self._frames_read = 0
 
     def __enter__(self):
-        print(self.url)
         self._cap = cv2.VideoCapture(self.url)
         if self._cap is None or not self._cap.isOpened():
             raise ValueError('Can not open video capture')
-        self.frames_total = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.frames_total = self.frames_total if self.frames_total > 0 else 0
+        self._frames_total = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self._frames_total = max(0, self._frames_total)
         self.source_fps = self._cap.get(cv2.CAP_PROP_FPS)
         return self
 
@@ -96,14 +95,14 @@ class VideoCapture(SourceCapture):
         """Check if there is next frame"""
         if self._cap is None:
             raise ValueError('Can be checked only in context manager')
-        if self.frames_total:
-            return self.frames_read < self.frames_total
+        if self._frames_total:
+            return self._frames_read < self._frames_total
         else:
             return True
 
     def skip(self, amount: int):
         """Skip amount of frames"""
-        self.frames_read += amount
+        self._frames_read += amount
 
     def read(self, max_retries=5) -> np.ndarray:
         """
@@ -118,7 +117,7 @@ class VideoCapture(SourceCapture):
             attempt += 1
         if ret:
             frame = cv2.resize(frame, settings.frame_size)
-            self.frames_read += 1
+            self._frames_read += 1
             return frame
         else:
             raise ValueError('Can not read next frame')
@@ -191,15 +190,14 @@ class ChunkWriter(VideoWriter):
     async def __aexit__(self, exc_type, exc_value, traceback):
         end_time = time.time()
         super().__exit__(exc_type, exc_value, traceback)
-        if not self._is_empty:
-            async with async_session_factory() as session:
-                await crud.video_chunks.create(
-                    session=session,
-                    file_path=str(self.path),
-                    source_id=self.source_id,
-                    start_time=self.start_time,
-                    end_time=end_time
-                )
+        if not self._is_empty and exc_type is None:
+            chunk = schemas.VideoChunkCreate(
+                source_id=self.source_id,
+                file_path=str(self.path),
+                start_time=self.start_time,
+                end_time=end_time
+            )
+            api_client.create_video_chunk(chunk)
 
 
 def add_timestamp(frame: np.ndarray, ts: float) -> np.ndarray:
@@ -233,10 +231,12 @@ class SourceProcessor:
     """Manages background tasks for processing sources."""
 
     def __init__(self):
-        self.tasks = {}
-        self.frames = {}  # Last frame for each source to be shown on the UI
+        self._tasks = {}
+        self._frames = {}  # Last frame for each source to be shown on the UI
+        for source in api_client.get_all_active_sources():
+            self.add(source)
 
-    async def process(self, source: models.Source):
+    async def process(self, source: schemas.Source):
         """
         Get frames from source and write them into video chunks.
         Create video files and database records.
@@ -267,7 +267,7 @@ class SourceProcessor:
                             if settings.draw_timestamp:
                                 frame = add_timestamp(frame, read_time)
                             writer.write(frame)
-                            self.frames[source.id] = frame  # Save last frame
+                            self._frames[source.id] = frame  # Save last frame
                             delay = 1 / fps - (time.time() - read_time)
                             if delay > 0:
                                 await asyncio.sleep(delay)
@@ -275,37 +275,30 @@ class SourceProcessor:
         except asyncio.CancelledError:
             # Source processing was cancelled by unknown reason,
             # so status should be updated from outside
-            self.tasks.pop(source.id)
-            self.frames.pop(source.id)
+            self._tasks.pop(source.id)
+            self._frames.pop(source.id)
             return
         except Exception as e:
             status = SourceStatus.ERROR
             status_msg = str(e)
         # Source processing either finished or failed, so status should be
         # updated from inside
-        async with async_session_factory() as session:
-            await crud.sources.update_status(
-                session=session,
-                id=source.id,
-                status=status,
-                status_msg=status_msg
-            )
-        self.tasks.pop(source.id)
-        self.frames.pop(source.id)
+        api_client.update_source_status(source.id, status, status_msg)
+        self._tasks.pop(source.id)
+        self._frames.pop(source.id)
 
-    def add(self, source: models.Source):
+    def add(self, source: schemas.Source):
         """Start processing source in background task."""
-        if source.id in self.tasks:
-            raise ValueError('Source is already processing')
-        self.tasks[source.id] = asyncio.create_task(
-            self.process(source)
-        )
-        self.frames[source.id] = None
+        if source.id not in self._tasks:
+            self._tasks[source.id] = asyncio.create_task(
+                self.process(source)
+            )
+            self._frames[source.id] = None
 
     async def remove(self, source_id: int):
         """Stop processing source with given id."""
-        if source_id in self.tasks:
-            task = self.tasks[source_id]
+        if source_id in self._tasks:
+            task = self._tasks[source_id]
             task.cancel()
             try:
                 await task
@@ -314,11 +307,11 @@ class SourceProcessor:
 
     async def remove_all(self):
         """Stop processing all sources."""
-        for task in self.tasks.values():
+        for task in self._tasks.values():
             task.cancel()
-        await asyncio.gather(*self.tasks.values())
+        await asyncio.gather(*self._tasks.values())
 
-    async def get_frame(self, source_id: int):
+    def get_frame(self, source_id: int):
         """Get frame from source."""
-        if source_id in self.frames:
-            return self.frames[source_id]
+        if source_id in self._frames:
+            return self._frames[source_id]
