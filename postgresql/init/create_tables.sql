@@ -1,10 +1,8 @@
-CREATE TABLE "user"
+CREATE TABLE "secret"
 (
   id SERIAL PRIMARY KEY,
   "name" VARCHAR(256) NOT NULL,
-  "password" VARCHAR(256) NOT NULL,
-  max_sources INT NOT NULL DEFAULT 5,
-  "role" INT NOT NULL DEFAULT 0,
+  "value" VARCHAR(256),
   UNIQUE ("name")
 );
 
@@ -14,9 +12,7 @@ CREATE TABLE source
   "name" VARCHAR(256) NOT NULL,
   "url" TEXT NOT NULL,
   status_code INT NOT NULL,
-  status_msg TEXT,
-  user_id INT NOT NULL,
-  FOREIGN KEY (user_id) REFERENCES "user"(id)
+  status_msg TEXT
 );
 
 CREATE TABLE video_chunk
@@ -30,15 +26,11 @@ CREATE TABLE video_chunk
   UNIQUE (file_path)
 );
 
-CREATE INDEX CONCURRENTLY "index_user_id"
-ON "user" using btree (id);
+CREATE INDEX CONCURRENTLY "index_source_id_and_status"
+ON source using btree (id, status_code);
 
-CREATE INDEX CONCURRENTLY "index_user_name"
-ON "user" using btree (name);
+CREATE INDEX CONCURRENTLY "index_video_chunk_source_id"
+ON video_chunk using btree (source_id);
 
-CREATE INDEX CONCURRENTLY "index_source_id_and_user_id"
-ON source using btree (id, user_id);
-
-CREATE INDEX CONCURRENTLY "index_video_chunk_id"
-ON video_chunk using btree (id);
-
+INSERT INTO "secret" ("name", "value") VALUES ('web_ui_password', NULL);
+INSERT INTO "secret" ("name", "value") VALUES ('api_token', NULL);

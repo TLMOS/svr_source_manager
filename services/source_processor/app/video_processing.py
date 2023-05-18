@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 import time
 from datetime import datetime
-import urllib.request
+import requests
 
 import numpy as np
 import cv2
@@ -54,12 +54,11 @@ class ImageCapture(SourceCapture):
         return True
 
     async def read(self) -> np.ndarray:
-        response = urllib.request.urlopen(self.url)
+        # TODO: Mistery of a wierd deadlock
+        response = requests.get(self.url, timeout=settings.capture_timeout)
         if self.url.startswith('http') and response.code != 200:
             raise ValueError('Can not read next frame')
-        arr = np.asarray(bytearray(response.read()), dtype=np.uint8)
-        img = cv2.imdecode(arr, -1)
-        return img
+        return response.content
 
 
 class VideoCapture(SourceCapture):
@@ -114,20 +113,32 @@ class StreamCapture(SourceCapture):
         return True
 
     async def read(self) -> np.ndarray:
-        content_length = None
-        bytes = b''
-        async with aiohttp.ClientSession() as session:
-            async with session.get(self.url) as resp:
-                async for line in resp.content:
-                    if content_length is not None:
-                        if len(bytes) < content_length:
-                            bytes += line
-                        else:
-                            jpg = bytes[2:-2]
-                            frame = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
-                            return frame
-                    elif b'Content-Length' in line:
-                        content_length = int(line.split()[1])
+        # TODO: Rewrite this mess
+        for _ in range(5):
+            content_length = None
+            bytes = b''
+            i = 0
+            async with aiohttp.ClientSession() as session:
+                async with session.get(self.url) as resp:
+                    async for line in resp.content:
+                        i += 1
+                        if content_length is not None:
+                            if len(bytes) < content_length:
+                                bytes += line
+                            else:
+                                jpg = bytes[2:-2]
+                                frame = cv2.imdecode(
+                                    np.fromstring(jpg, dtype=np.uint8),
+                                    cv2.IMREAD_COLOR
+                                )
+                                return frame
+                        elif b'Content-Length' in line:
+                            content_length = int(line.split()[1])
+                            if content_length < 100:
+                                break
+                        elif i > 100:
+                            break
+        raise ValueError('Can not read next frame')
 
 
 def open_source(url: str) -> SourceCapture:
@@ -204,13 +215,19 @@ class ChunkWriter(VideoWriter):
                 start_time=self.start_time,
                 end_time=end_time
             )
-            api_client.create_video_chunk(chunk)
+            await api_client.create_video_chunk(chunk)
 
 
 def add_timestamp(frame: np.ndarray, ts: float) -> np.ndarray:
     """
     Add timestamp to frame.
-    Timestamp is a number of seconds since the beginning of the video.
+
+    Parameters:
+    - frame (np.ndarray): frame to add timestamp to
+    - ts (float): timestamp in seconds
+
+    Returns:
+    - frame (np.ndarray): frame with timestamp
     """
 
     text = datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
@@ -239,22 +256,22 @@ class SourceProcessor:
 
     def __init__(self):
         self._tasks = {}
-        self._frames = {}  # Last frame for each source to be shown on the UI
-        for source in api_client.get_all_active_sources():
-            self.add(source)
 
-    async def process(self, source: Source):
+    async def _process(self, source: Source):
         """
-        Get frames from source and write them into video chunks.
+        Get frames from the given source and write them into video chunks.
         Create video files and database records.
         Suppoused to be run as a background task.
+
+        Parameters:
+        - source (schemas.Source) - source to process
         """
         save_dir = settings.chunks_dir / str(source.id)
         save_dir.mkdir(parents=True, exist_ok=True)
         fps, duration = settings.chunk_fps, settings.chunk_duration
         number_of_frames = int(fps * duration)
         chunks_count = len(list(save_dir.glob('*.mp4')))
-        status, status_msg = SourceStatus.FINISHED, None
+        status, status_msg = SourceStatus.FINISHED, ''
         try:
             with open_source(source.url) as cap:
                 while cap.has_next():
@@ -269,7 +286,6 @@ class SourceProcessor:
                             if settings.draw_timestamp:
                                 frame = add_timestamp(frame, read_time)
                             writer.write(frame)
-                            self._frames[source.id] = frame  # Save last frame
                             delay = 1 / fps - (time.time() - read_time)
                             if delay > 0:
                                 await asyncio.sleep(delay)
@@ -278,27 +294,33 @@ class SourceProcessor:
             # Source processing was cancelled by unknown reason,
             # so status should be updated from outside
             self._tasks.pop(source.id)
-            self._frames.pop(source.id)
             return
         except Exception as e:
             status = SourceStatus.ERROR
             status_msg = str(e)
         # Source processing either finished or failed, so status should be
         # updated from inside
-        api_client.update_source_status(source.id, status, status_msg)
+        await api_client.update_source_status(source.id, status, status_msg)
         self._tasks.pop(source.id)
-        self._frames.pop(source.id)
 
     def add(self, source: Source):
-        """Start processing source in background task."""
+        """
+        Start processing source.
+        If source is already being processed, do nothing.
+
+        Parameters:
+        - source (schemas.Source) - source to process
+        """
         if source.id not in self._tasks:
-            self._tasks[source.id] = asyncio.create_task(
-                self.process(source)
-            )
-            self._frames[source.id] = None
+            self._tasks[source.id] = asyncio.create_task(self._process(source))
 
     async def remove(self, source_id: int):
-        """Stop processing source with given id."""
+        """
+        Stop processing source.
+
+        Parameters:
+        - source_id (int) - id of source to stop processing
+        """
         if source_id in self._tasks:
             task = self._tasks[source_id]
             task.cancel()
@@ -307,13 +329,14 @@ class SourceProcessor:
             except asyncio.CancelledError:
                 pass
 
-    async def remove_all(self):
+    async def startup(self):
+        """Start processing all active sources."""
+        sources = await api_client.get_all_active_sources()
+        for source in sources:
+            self.add(source)
+
+    async def shutdown(self):
         """Stop processing all sources."""
         for task in self._tasks.values():
             task.cancel()
         await asyncio.gather(*self._tasks.values())
-
-    def get_frame(self, source_id: int):
-        """Get frame from source."""
-        if source_id in self._frames:
-            return self._frames[source_id]

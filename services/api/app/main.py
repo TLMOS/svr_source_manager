@@ -1,17 +1,19 @@
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 
-from common import schemas
-from app.database import async_session_factory
+from app.routers.security import router as security_router
+from app.routers.sources import router as sources_router
+from app.routers.videos import router as videos_router
+from app.routers.exposed import router as exposed_router
 from app.config import settings
-from app.routers import users, sources, videos
 from app import crud, security
+from app.database import async_session_factory
 
 
 tags_metadata = [
     {
-        "name": "User management",
-        "description": "Manage users."
+        "name": "Security",
+        "description": "Verify Web-UI user credentials, generate tokens."
     },
     {
         "name": "Source management",
@@ -20,6 +22,13 @@ tags_metadata = [
     {
         "name": "Video managment",
         "description": "Retrieve video data and manage video chunks"
+    },
+    {
+        "name": "Exposed API",
+        "description": """API accessible outside of the local network.
+            Get frames, chunks and segments from stored video data.
+            Requires token authentication.
+            """
     }
 ]
 
@@ -35,7 +44,7 @@ send it to the processing API.
 app = FastAPI(
     title="Security Video Retrieval Core API",
     description=description,
-    version="0.1.4",
+    version="0.2.1",
     license_info={
         "name": "MIT License",
         "url": "https://opensource.org/licenses/mit-license.php"
@@ -44,30 +53,22 @@ app = FastAPI(
 )
 
 
-app.include_router(users.router)
-app.include_router(sources.router)
-app.include_router(videos.router)
-
-
 @app.on_event("startup")
 async def startup():
-    """Startup event. Create admin user if needed."""
-    if settings.admin_create:
-        async with async_session_factory() as session:
-            user = await crud.users.read_by_name(
-                session,
-                settings.admin_username
+    async with async_session_factory() as session:
+        secret_db = await crud.secrets.read_by_name(session, 'web_ui_password')
+        if secret_db.value is None:
+            password = settings.default_web_ui_password
+            password = security.get_secret_hash(password)
+            await crud.secrets.update_value(
+                session, 'web_ui_password', password
             )
-            if user is None:
-                user = schemas.UserCreate(
-                    name=settings.admin_username,
-                    password=security.get_password_hash(
-                        settings.admin_password
-                    ),
-                    role=schemas.UserRole.ADMIN,
-                    max_sources=-1
-                )
-                await crud.users.create(session, user)
+
+
+app.include_router(security_router)
+app.include_router(sources_router)
+app.include_router(videos_router)
+app.include_router(exposed_router)
 
 
 @app.get("/", include_in_schema=False)

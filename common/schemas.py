@@ -1,41 +1,22 @@
 """Pydantic schemas for the data server."""
 
 from pydantic import BaseModel
-from common.constants import UserRole, SourceStatus
+from common.constants import SourceStatus
 
 
-class UserBase(BaseModel):
-    name: str
-    max_sources: int
-    role: UserRole
-
-
-class UserCreate(UserBase):
-    password: str
-
-
-class User(UserBase):
-    id: int
-
-    class Config:
-        orm_mode = True
-        schema_extra = {
-            "example": {
-                "id": 1,
-                "name": "admin",
-                "role": 1,
-                "max_sources": -1
-            }
-        }
-
-
-class Source(BaseModel):
-    id: int
+class SourceBase(BaseModel):
     name: str
     url: str
+
+
+class SourceCreate(SourceBase):
+    pass
+
+
+class Source(SourceBase):
+    id: int
     status_code: SourceStatus
     status_msg: str | None = None
-    user_id: int
 
     class Config:
         orm_mode = True

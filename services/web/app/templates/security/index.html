@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1 class="">{% block title %} Security {% endblock %}</h1>
+
+<div class="card mb-4 mt-4">
+    <form action="{{ url_for('security.update_password') }}" method="POST">
+        <div class="card-header">
+            <h4 class="card-title">Change Password</h4>
+        </div>
+        <div class="card-body">
+            <div class="form-group">
+                <input type="password" class="form-control" id="old_password" name="old_password"
+                    placeholder="Old Password">
+            </div>
+            <div class="form-group">
+                <input type="password" class="form-control" id="new_password" name="new_password"
+                    placeholder="New Password">
+            </div>
+            <div class="form-group mb-0">
+                <input type="password" class="form-control" id="confirm_new_password" name="confirm_new_password"
+                    placeholder="Confirm New Password">
+            </div>
+        </div>
+        <div class="card-footer">
+            <button type="submit" class="btn btn-dark btn-lg btn-block">Change Password</button>
+        </div>
+    </form>
+</div>
+
+<div class="card mb-4 mt-4">
+    
+        <div class="card-header">
+            <h4 class="card-title">API Token</h4>
+        </div>
+        <div class="card-body">
+            <p class="card-text">You need this token to give other applications access to this application's API.</p>
+            <form action="{{ url_for('security.update_token') }}" method="POST">
+                <button type="submit" class="btn btn-dark btn-lg btn-block mb-3">Generate new token</button>
+            </form>
+            <form action="{{ url_for('security.invalidate_token') }}" method="POST">
+                <button type="submit" class="btn btn-danger btn-lg btn-block">Invalidate current token</button>
+            </form>
+        </div>
+        <div class="card-footer">
+            {% if token %}
+            <h3 class="text-center">{{ token }}</h3>
+            <p class="text-center">Token will be displayed only once. Please save it somewhere.</p>
+            {% endif %}
+        </div>
+</div>
+{% endblock %}

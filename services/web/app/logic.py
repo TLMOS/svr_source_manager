@@ -3,9 +3,6 @@ from urllib.error import HTTPError
 from requests.exceptions import ConnectionError
 
 from flask import session, redirect, url_for, render_template, request, flash
-from flask_login import login_required, current_user
-
-from common.constants import UserRole
 
 
 def action(endpoint: str):
@@ -62,25 +59,5 @@ def render(template: str, endpoint: str = None):
             except ConnectionError as e:
                 error = f'ConnectionError: {e}'
                 return render_template('error.html', error=error)
-        return wrapper
-    return decorator
-
-
-def role_required(role: UserRole):
-    """
-    Decorator for checking user role.
-    Redirects to index if user role is not specified.
-
-    Args:
-        role: Required user role.
-    """
-    def decorator(func: callable):
-        @wraps(func)
-        @login_required
-        def wrapper(*args, **kwargs):
-            if current_user.role not in (role, UserRole.ADMIN):
-                flash('You do not have access to this page', 'error')
-                return redirect(url_for('main.index'))
-            return func(*args, **kwargs)
         return wrapper
     return decorator

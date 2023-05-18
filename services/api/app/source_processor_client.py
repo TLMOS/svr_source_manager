@@ -1,51 +1,55 @@
-import requests
-
+import aiohttp
 from fastapi import HTTPException
 
 from common import schemas
+from common.http_client import AsyncClientSession
 from app.config import settings
 from app import models
 
 
-def base_reqest(method: str,
-                route: str,
-                params: dict = {},
-                json: str | None = None,
-                ) -> requests.Response:
+session = AsyncClientSession(settings.source_processor_url)
+
+
+@session.on_response
+async def on_response(resp: aiohttp.ClientResponse):
+    if resp.status != 200:
+        msg = 'Unparsable response'
+        if 'Content-Type' in resp.headers:
+            if resp.headers['Content-Type'] == 'application/json':
+                msg = await resp.json()
+            elif resp.headers['Content-Type'] == 'text/html; charset=utf-8':
+                msg = await resp.text()
+            elif resp.headers['Content-Type'] == 'text/plain; charset=utf-8':
+                msg = await resp.text()
+        if 'detail' in msg:
+            msg = msg['detail']
+        if isinstance(msg, list):
+            msg = msg[0]
+        if 'msg' in msg:
+            msg = msg['msg']
+        detail = f'Got "{msg}" while sending request to source processor \
+            service with url {resp.url}'
+        raise HTTPException(resp.status, detail)
+
+
+async def add(db_source: models.Source) -> None:
     """
-    Send request to source processor.
+    Add source to the processing list.
 
-    Args:
-        method: HTTP method.
-        route: Route to send request to.
-        params: Params to send with request.
+    Parameters:
+    - db_source (models.Source): source to add
     """
-    url = f'{settings.source_processor_url}/{route}'
-    try:
-        response = requests.request(method, url, params=params, json=json)
-    except requests.exceptions.ConnectionError as e:
-        raise HTTPException(status_code=404, detail=e.strerror)
-    if response.status_code != 200:
-        raise HTTPException(
-            response.status_code,
-            response.json()['detail'],
-            response.headers
-        )
-    return response
-
-
-def add(db_source: models.Source):
     source = schemas.Source.from_orm(db_source)
-    base_reqest('POST', 'add', json=source.dict())
+    async with session.post('add', json=source.dict()):
+        pass
 
 
-def remove(source_id: int):
-    base_reqest('DELETE', 'remove', params={
-        'source_id': source_id
-    })
+async def remove(source_id: int) -> None:
+    """
+    Remove source from the processing list.
 
-
-def get_frame(source_id: int) -> bytes:
-    return base_reqest('GET', 'get_frame', params={
-        'source_id': source_id
-    }).content
+    Parameters:
+    - source_id (int): source id
+    """
+    async with session.delete('remove', params={'source_id': source_id}):
+        pass

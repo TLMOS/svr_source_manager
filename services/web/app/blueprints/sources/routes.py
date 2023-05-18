@@ -51,12 +51,11 @@ def index():
 def add():
     name = request.form['name']
     url = request.form['url']
+    file = request.files['file']
     if name == '':
         flash(message='Source name can\'t be empty.', category='error')
-    elif 'file' in request.files:
-        content = request.files['file'].read()
-        file_name = request.files['file'].filename
-        api_client.sources.creare_from_file(name, file_name, content)
+    elif file:
+        api_client.sources.creare_from_file(name, file.filename, file.read())
     else:
         api_client.sources.create_from_url(name, url)
 
@@ -92,7 +91,7 @@ def source(id: int):
     status = SOURCE_STATUS_TO_STR[source.status_code]
 
     try:
-        frame = api_client.sources.get_frame(id)
+        frame = api_client.videos.get_last_frame(id)
         frame = base64.b64encode(frame).decode('utf-8')
     except HTTPError:
         frame = None

@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse, Response
 import cv2
 
 from common.schemas import Source
+from app.api_client import session as api_client_session
 from app.video_processing import SourceProcessor
 
 
@@ -18,18 +19,30 @@ Source processing steps:
 """
 
 
-source_processor = SourceProcessor()
-
-
 app = FastAPI(
     title="Security Video Retrieval Core API",
     description=description,
-    version="0.0.1",
+    version="0.2.1",
     license_info={
         "name": "MIT License",
         "url": "https://opensource.org/licenses/mit-license.php"
     }
 )
+
+
+source_processor = SourceProcessor()
+
+
+@app.on_event("startup")
+async def startup():
+    await api_client_session.startup()
+    await source_processor.startup()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    await source_processor.shutdown()
+    await api_client_session.shutdown()
 
 
 @app.get("/", include_in_schema=False)
@@ -47,7 +60,7 @@ async def add(source: Source):
     Add source to processing list.
 
     Parameters:
-    - **id**: source id
+    - id: source id
     """
     source_processor.add(source)
 
@@ -61,26 +74,6 @@ async def remove(source_id: int):
     Add source to processing list.
 
     Parameters:
-    - **id**: source id
+    - id: source id
     """
     await source_processor.remove(source_id)
-
-
-@app.get(
-    "/get_frame",
-    summary="Get frame",
-    response_description="Frame",
-    response_class=Response
-)
-async def get_frame(source_id: int):
-    """
-    Get last frame from source
-
-    Parameters:
-    - **id**: source id
-    """
-    frame = source_processor.get_frame(source_id)
-    if frame is None:
-        raise HTTPException(status_code=404, detail="Frame not found")
-    _, buffer = cv2.imencode('.jpg', frame)
-    return Response(content=buffer.tobytes(), media_type="image/jpeg")

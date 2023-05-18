@@ -1,21 +1,16 @@
 from sqlalchemy import Column, Integer, Float, String, ForeignKey
 from sqlalchemy.orm import relationship
 
-from common.constants import UserRole, SourceStatus
+from common.constants import SourceStatus
 from .database import Base
 
 
-class User(Base):
-    __tablename__ = 'user'
+class Secret(Base):
+    __tablename__ = 'secret'
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)
-    password = Column(String, nullable=False)
-    max_sources = Column(Integer, default=5, nullable=False)
-    role = Column(Integer, default=UserRole.USER, nullable=False)
-
-    sources = relationship('Source', back_populates='user',
-                           cascade='all, delete')
+    value = Column(String, nullable=False)
 
 
 class Source(Base):
@@ -26,9 +21,7 @@ class Source(Base):
     url = Column(String)
     status_code = Column(Integer, default=SourceStatus.PAUSED, nullable=False)
     status_msg = Column(String, nullable=True)
-    user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
-    user = relationship('User', back_populates='sources')
     chunks = relationship('VideoChunk', back_populates='source',
                           cascade='all, delete')
 

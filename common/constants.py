@@ -1,11 +1,6 @@
 from enum import IntEnum
 
 
-class UserRole(IntEnum):
-    USER = 0
-    ADMIN = 1
-
-
 class SourceStatus(IntEnum):
     ACTIVE = 0
     PAUSED = 1
