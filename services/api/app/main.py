@@ -42,7 +42,7 @@ send it to the processing API.
 
 
 app = FastAPI(
-    title="Security Video Retrieval Core API",
+    title="SVR Source Manager API",
     description=description,
     version="0.2.1",
     license_info={

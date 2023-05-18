@@ -1,6 +1,6 @@
 import multiprocessing
 
-proc_name = "svr_core_api"
+proc_name = "svr_sm_api"
 
 workers = multiprocessing.cpu_count() * 2 + 1
 max_requests = 1000

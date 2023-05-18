@@ -1,3 +1,3 @@
-# SVR Core
+# SVR Source Manager
 
-This is the core of the Security Video Retrieval (SVR) system.
+This is client-side application of the Security Video Retrieval (SVR) system.

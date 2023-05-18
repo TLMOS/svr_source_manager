@@ -20,7 +20,7 @@ Source processing steps:
 
 
 app = FastAPI(
-    title="Security Video Retrieval Core API",
+    title="SVR Source Processor API",
     description=description,
     version="0.2.1",
     license_info={

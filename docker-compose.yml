@@ -3,7 +3,7 @@ version: "3.9"
 services:
   db:
     image: postgres:15.2-alpine
-    container_name: svr_core_db
+    container_name: svr_sm_db
     env_file: ./.env
     environment:
       PGDATA: "/var/lib/postgresql/data/pgdata"
@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
   web:
     build: ./services/web
-    container_name: svr_core_web
+    container_name: svr_sm_web
     env_file: ./.env
     volumes:
       - ./common:/home/common
@@ -23,7 +23,7 @@ services:
       - db
   api:
     build: ./services/api
-    container_name: svr_core_api
+    container_name: svr_sm_api
     env_file: ./.env
     volumes:
       - ./common:/home/common
@@ -33,7 +33,7 @@ services:
       - db
   source_processor:
     build: ./services/source_processor
-    container_name: svr_core_source_processor
+    container_name: svr_sm_source_processor
     env_file: ./.env
     volumes:
       - ./common:/home/common
@@ -43,7 +43,7 @@ services:
       - api
   nginx:
     build: ./services/nginx
-    container_name: svr_core_nginx
+    container_name: svr_sm_nginx
     volumes:
       - ./static:/www/web/static
     restart: unless-stopped
