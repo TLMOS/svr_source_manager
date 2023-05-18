@@ -1,5 +1,3 @@
-from typing import Annotated
-
 import bcrypt
 from fastapi import HTTPException, Header, Depends
 

@@ -34,9 +34,9 @@ tags_metadata = [
 
 
 description = """
-Core API for the Security Video Retrieval project.
+Core API for the Source Management Application in the SVR project.
 
-This API is used to manage users, video sources, retrieve video data and
+This API is used to video sources, retrieve video data and
 send it to the processing API.
 """
 
