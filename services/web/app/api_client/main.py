@@ -23,8 +23,7 @@ def on_response(resp: requests.Response):
                 msg = msg['msg']
         except JSONDecodeError:
             msg = 'Unparsable response'
-        detail = f'Got "{msg}" while sending request to api \
-            service with url {resp.url}'
+        detail = f'Got "{msg}" while sending request to api service'
         raise HTTPError(
             url=resp.url,
             code=resp.status_code,

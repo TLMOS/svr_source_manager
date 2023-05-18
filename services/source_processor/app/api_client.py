@@ -27,8 +27,7 @@ async def on_response(resp: aiohttp.ClientResponse):
             msg = msg[0]
         if 'msg' in msg:
             msg = msg['msg']
-        detail = f'Got "{msg}" while sending request to api service \
-            with url {resp.url}'
+        detail = f'Got "{msg}" while sending request to api service'
         raise HTTPException(resp.status, detail)
 
 
