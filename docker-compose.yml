@@ -11,6 +11,8 @@ services:
       - ./postgresql/init:/docker-entrypoint-initdb.d
       - ./postgresql/data:/var/lib/postgresql/data
     restart: unless-stopped
+    ports:
+      - 5433:5432 # Remove in prod
   web:
     build: ./services/web
     container_name: svr_sm_web
@@ -31,6 +33,8 @@ services:
     restart: unless-stopped
     depends_on:
       - db
+    ports:
+      - 8082:8000 # Remove in prod
   source_processor:
     build: ./services/source_processor
     container_name: svr_sm_source_processor

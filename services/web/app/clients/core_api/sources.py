@@ -1,5 +1,5 @@
 from common.schemas import Source
-from app.api_client.main import session
+from app.clients.core_api.main import session
 
 
 def create_from_url(name: str, url: str) -> dict:

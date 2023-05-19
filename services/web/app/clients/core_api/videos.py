@@ -1,4 +1,4 @@
-from app.api_client.main import session
+from app.clients.core_api.main import session
 
 
 def get_last_frame(source_id: int) -> bytes:

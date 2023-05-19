@@ -30,4 +30,7 @@ def create_app():
     from app.blueprints.sources import bp as posts_bp
     app.register_blueprint(posts_bp, url_prefix='/sources')
 
+    from app.blueprints.search import bp as search_bp
+    app.register_blueprint(search_bp, url_prefix='/search')
+
     return app

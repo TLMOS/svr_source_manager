@@ -11,6 +11,7 @@ class AsyncClientSession:
 
     Attributes:
     - url (str): base url
+    - is_opened (bool): session status
 
     Usage:
     ```python
@@ -36,17 +37,21 @@ class AsyncClientSession:
 
     def __init__(self, url: str):
         self.url = url
+        self.is_opened = False
         self.__session = None
 
     async def startup(self):
         """Open session."""
         self.__session = aiohttp.ClientSession()
+        self.is_opened = True
         if self._on_startup:
             await self._on_startup()
 
     async def shutdown(self):
         """Close session."""
         await self.__session.close()
+        self.__session = None
+        self.is_opened = False
         if self._on_shutdown:
             await self._on_shutdown()
 
@@ -104,6 +109,7 @@ class ClientSession:
 
     Attributes:
     - url (str): base url
+    - is_opened (bool): session status
 
     Usage:
     ```python
@@ -129,14 +135,17 @@ class ClientSession:
 
     def __init__(self, url: str):
         self.url = url
+        self.is_opened = False
 
     def startup(self):
         """Run startup callback."""
+        self.is_opened = True
         if self._on_startup:
             self._on_startup()
 
     def shutdown(self):
         """Run shutdown callback."""
+        self.is_opened = False
         if self._on_shutdown:
             self._on_shutdown()
 

@@ -29,24 +29,24 @@
 </div>
 
 <div class="card mb-4 mt-4">
-    
-        <div class="card-header">
-            <h4 class="card-title">API Token</h4>
-        </div>
-        <div class="card-body">
-            <p class="card-text">You need this token to give other applications access to this application's API.</p>
-            <form action="{{ url_for('security.update_token') }}" method="POST">
-                <button type="submit" class="btn btn-dark btn-lg btn-block mb-3">Generate new token</button>
-            </form>
-            <form action="{{ url_for('security.invalidate_token') }}" method="POST">
-                <button type="submit" class="btn btn-danger btn-lg btn-block">Invalidate current token</button>
-            </form>
-        </div>
-        <div class="card-footer">
-            {% if token %}
-            <h3 class="text-center">{{ token }}</h3>
-            <p class="text-center">Token will be displayed only once. Please save it somewhere.</p>
-            {% endif %}
-        </div>
+
+    <div class="card-header">
+        <h4 class="card-title">API Token</h4>
+    </div>
+    <div class="card-body">
+        <p class="card-text">You need this token to give other applications access to this application's API.</p>
+        <form action="{{ url_for('security.update_token') }}" method="POST">
+            <button type="submit" class="btn btn-dark btn-lg btn-block mb-3">Generate new token</button>
+        </form>
+        <form action="{{ url_for('security.invalidate_token') }}" method="POST">
+            <button type="submit" class="btn btn-danger btn-lg btn-block">Invalidate current token</button>
+        </form>
+    </div>
+    <div class="card-footer">
+        {% if token %}
+        <h3 class="text-center">{{ token }}</h3>
+        <p class="text-center">Token will be displayed only once. Please save it somewhere.</p>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

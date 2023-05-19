@@ -6,22 +6,21 @@ import cv2
 
 from app import crud
 from app.config import settings
-from app.database import SessionDep
+from app.dependencies import SessionDep, TokenAuthDep
 from app.utils import open_video_capture, open_video_writer, TmpFilePath
-from app.security import ExposedDep
 
 
 router = APIRouter(
-    prefix="/api",
-    tags=["Exposed API"],
-    dependencies=[ExposedDep]
+    prefix='/api',
+    tags=['Exposed API'],
+    dependencies=[TokenAuthDep]
 )
 
 
 @router.get(
-    "/get/frame/timestamp",
-    summary="Get frame by timestamp",
-    response_description="Frame",
+    '/frame/get/timestamp',
+    summary='Get frame by timestamp',
+    response_description='Frame',
     response_class=Response
 )
 async def get_frame_by_timestamp(session: SessionDep, source_id: int,
@@ -45,20 +44,20 @@ async def get_frame_by_timestamp(session: SessionDep, source_id: int,
                                                       timestamp)
     if chunk is None:
         raise HTTPException(status_code=404,
-                            detail="No frame saved at this timestamp")
+                            detail='No frame saved at this timestamp')
     with open_video_capture(chunk.file_path) as cap:
         cap.set(cv2.CAP_PROP_POS_MSEC, timestamp - chunk.start_time)
         ret, frame = cap.read()
         if not ret:
-            raise HTTPException(status_code=400, detail="Frame capture failed")
-        _, buffer = cv2.imencode(".jpg", frame)
-        return Response(content=buffer.tobytes(), media_type="image/jpeg")
+            raise HTTPException(status_code=400, detail='Frame capture failed')
+        _, buffer = cv2.imencode('.jpg', frame)
+        return Response(content=buffer.tobytes(), media_type='image/jpeg')
 
 
 @router.get(
-    "/get/video/chunk",
-    summary="Get video chunk",
-    response_description="Video chunk",
+    '/video/get/chunk',
+    summary='Get video chunk',
+    response_description='Video chunk',
     response_class=FileResponse
 )
 async def get_video_chunk(session: SessionDep, chunk_id: int):
@@ -77,14 +76,14 @@ async def get_video_chunk(session: SessionDep, chunk_id: int):
     """
     chunk = await crud.video_chunks.read(session, chunk_id)
     if chunk is None:
-        raise HTTPException(status_code=404, detail="Video chunk not found")
-    return FileResponse(path=chunk.file_path, media_type="video/mp4")
+        raise HTTPException(status_code=404, detail='Video chunk not found')
+    return FileResponse(path=chunk.file_path, media_type='video/mp4')
 
 
 @router.get(
-    "/get/video/part",
-    summary="Get video part in given time interval",
-    response_description="Video part",
+    '/video/get/part',
+    summary='Get video part in given time interval',
+    response_description='Video part',
     response_class=FileResponse
 )
 async def get_video_part(session: SessionDep, source_id: int,
@@ -110,7 +109,7 @@ async def get_video_part(session: SessionDep, source_id: int,
     if not chunks:
         raise HTTPException(
                 status_code=404,
-                detail="No video chunks found in given interval"
+                detail='No video chunks found in given interval'
         )
     with TmpFilePath('.mp4') as path:
         with open_video_writer(path) as out:
@@ -128,4 +127,4 @@ async def get_video_part(session: SessionDep, source_id: int,
                         ret, frame = cap.read()
                         if ret:
                             out.write(frame)
-        return FileResponse(path=path, media_type="video/mp4")
+        return FileResponse(path=path, media_type='video/mp4')

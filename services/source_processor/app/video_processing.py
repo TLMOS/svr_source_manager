@@ -16,7 +16,7 @@ import cv2
 from common.constants import SourceStatus
 from common.schemas import Source, VideoChunkCreate
 from app.config import settings
-from app import api_client
+from app.clients import core_api, rabbitmq
 
 
 VIDEO_EXTENSIONS = ['mp4', 'avi']
@@ -215,7 +215,9 @@ class ChunkWriter(VideoWriter):
                 start_time=self.start_time,
                 end_time=end_time
             )
-            await api_client.create_video_chunk(chunk)
+            await core_api.create_video_chunk(chunk)
+            if rabbitmq.session.is_opened:
+                rabbitmq.publish_video_chunk(chunk)
 
 
 def add_timestamp(frame: np.ndarray, ts: float) -> np.ndarray:
@@ -256,6 +258,7 @@ class SourceProcessor:
 
     def __init__(self):
         self._tasks = {}
+        self.is_running = False
 
     async def _process(self, source: Source):
         """
@@ -300,7 +303,7 @@ class SourceProcessor:
             status_msg = str(e)
         # Source processing either finished or failed, so status should be
         # updated from inside
-        await api_client.update_source_status(source.id, status, status_msg)
+        await core_api.update_source_status(source.id, status, status_msg)
         self._tasks.pop(source.id)
 
     def add(self, source: Source):
@@ -331,12 +334,14 @@ class SourceProcessor:
 
     async def startup(self):
         """Start processing all active sources."""
-        sources = await api_client.get_all_active_sources()
+        sources = await core_api.get_all_active_sources()
         for source in sources:
             self.add(source)
+        self.is_running = True
 
     async def shutdown(self):
         """Stop processing all sources."""
         for task in self._tasks.values():
             task.cancel()
         await asyncio.gather(*self._tasks.values())
+        self.is_running = False

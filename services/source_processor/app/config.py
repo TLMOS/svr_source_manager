@@ -8,6 +8,12 @@ class Settings(BaseSettings):
     # Service urls
     api_url: str
 
+    # RabbitMQ settings
+    rabbitmq_host: str = 'rabbitmq'
+    rabbitmq_port: int = 5672
+    rabbitmq_vhost: str = '/'
+    rabbitmq_exchange: str = 'video_chunks'
+
     # Video settings
     frame_size: tuple[int, int] = (640, 480)
     chunk_duration: float = 60

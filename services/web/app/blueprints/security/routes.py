@@ -3,7 +3,7 @@ from flask_login import login_required
 
 from app.blueprints.security import bp
 from app.logic import render, action, flash, session
-from app import api_client
+from app.clients import core_api
 
 
 @bp.before_request
@@ -36,8 +36,8 @@ def update_password():
     elif old_password == new_password:
         flash(message='New password must be different from old one.',
               category='error')
-    elif api_client.security.verify_password(old_password):
-        api_client.security.update_password(new_password)
+    elif core_api.security.verify_password(old_password):
+        core_api.security.update_password(new_password)
     else:
         flash(message='Incorrect password.', category='error')
 
@@ -45,10 +45,10 @@ def update_password():
 @bp.route('/update_token', methods=['POST'])
 @action(endpoint='security.index')
 def update_token():
-    session['tmp'] = api_client.security.update_token()
+    session['tmp'] = core_api.security.update_token()
 
 
 @bp.route('/invalidate_token', methods=['POST'])
 @action(endpoint='security.index')
 def invalidate_token():
-    api_client.security.invalidate_token()
+    core_api.security.invalidate_token()

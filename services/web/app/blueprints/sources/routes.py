@@ -9,7 +9,7 @@ from flask_login import login_required
 from common.constants import SOURCE_STATUS_TO_STR
 from common.constants import SourceStatus
 from app.blueprints.sources import bp
-from app import api_client
+from app.clients import core_api
 from app.logic import action, render
 from app.utils import float_to_color
 
@@ -26,7 +26,7 @@ def index():
     search_entry = request.args.get('search_entry', '')
     show_finished = request.args.get('show_finished', 'off')
 
-    sources = api_client.sources.get_all()
+    sources = core_api.sources.get_all()
     if show_finished == 'off':
         sources = [
             s for s in sources if s.status_code != SourceStatus.FINISHED
@@ -55,48 +55,48 @@ def add():
     if name == '':
         flash(message='Source name can\'t be empty.', category='error')
     elif file:
-        api_client.sources.creare_from_file(name, file.filename, file.read())
+        core_api.sources.creare_from_file(name, file.filename, file.read())
     else:
-        api_client.sources.create_from_url(name, url)
+        core_api.sources.create_from_url(name, url)
 
 
 @bp.route('/start/<int:id>', methods=['POST'])
 @action(endpoint='sources.index')
 def start(id: int):
-    api_client.sources.start(id)
+    core_api.sources.start(id)
 
 
 @bp.route('/pause/<int:id>', methods=['POST'])
 @action(endpoint='sources.index')
 def pause(id: int):
-    api_client.sources.pause(id)
+    core_api.sources.pause(id)
 
 
 @bp.route('/finish/<int:id>', methods=['POST'])
 @action(endpoint='sources.index')
 def finish(id: int):
-    api_client.sources.finish(id)
+    core_api.sources.finish(id)
 
 
 @bp.route('/delete/<int:id>', methods=['POST'])
 @action(endpoint='sources.index')
 def delete(id: int):
-    api_client.sources.delete(id)
+    core_api.sources.delete(id)
 
 
 @bp.route('/<int:id>', methods=['GET'])
 @render(template='sources/source.html')
 def source(id: int):
-    source = api_client.sources.get(id)
+    source = core_api.sources.get(id)
     status = SOURCE_STATUS_TO_STR[source.status_code]
 
     try:
-        frame = api_client.videos.get_last_frame(id)
+        frame = core_api.videos.get_last_frame(id)
         frame = base64.b64encode(frame).decode('utf-8')
     except HTTPError:
         frame = None
 
-    intervals = api_client.sources.get_time_coverage(id)
+    intervals = core_api.sources.get_time_coverage(id)
     day_coverage = {}
     for (start, end) in intervals:
         dt = datetime.fromtimestamp(start)

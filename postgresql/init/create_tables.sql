@@ -31,6 +31,3 @@ ON source using btree (id, status_code);
 
 CREATE INDEX CONCURRENTLY "index_video_chunk_source_id"
 ON video_chunk using btree (source_id);
-
-INSERT INTO "secret" ("name", "value") VALUES ('web_ui_password', NULL);
-INSERT INTO "secret" ("name", "value") VALUES ('api_token', NULL);

@@ -21,12 +21,12 @@ class Source(SourceBase):
     class Config:
         orm_mode = True
         schema_extra = {
-            "example": {
-                "id": 1,
-                "name": "Parking lot",
-                "url": "http://example.com/video.mjpg",
-                "status_code": 0,
-                "status_msg": None
+            'example': {
+                'id': 1,
+                'name': 'Parking lot',
+                'url': 'http://example.com/video.mjpg',
+                'status_code': 0,
+                'status_msg': None
             }
         }
 
@@ -48,11 +48,11 @@ class VideoChunk(VideoChunkBase):
     class Config:
         orm_mode = True
         schema_extra = {
-            "example": {
-                "id": 1,
-                "source_id": 1,
-                "file_path": "/path/to/chunk.mp4",
-                "start_time": 0.0,
-                "end_time": 10.0
+            'example': {
+                'id': 1,
+                'source_id': 1,
+                'file_path': '/path/to/chunk.mp4',
+                'start_time': 0.0,
+                'end_time': 10.0
             }
         }

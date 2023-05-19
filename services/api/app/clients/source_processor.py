@@ -31,7 +31,7 @@ async def on_response(resp: aiohttp.ClientResponse):
         raise HTTPException(resp.status, detail)
 
 
-async def add(db_source: models.Source) -> None:
+async def add(db_source: models.Source):
     """
     Add source to the processing list.
 
@@ -43,7 +43,7 @@ async def add(db_source: models.Source) -> None:
         pass
 
 
-async def remove(source_id: int) -> None:
+async def remove(source_id: int):
     """
     Remove source from the processing list.
 
@@ -52,3 +52,28 @@ async def remove(source_id: int) -> None:
     """
     async with session.delete('remove', params={'source_id': source_id}):
         pass
+
+
+async def rabbitmq_startup(username: str, password: str):
+    """
+    Start RabbitMQ session.
+
+    Parameters:
+    - username (str): RabbitMQ username
+    - password (str): RabbitMQ password
+    """
+    params = {'username': username, 'password': password}
+    async with session.post('rabbitmq/startup', params=params):
+        pass
+
+
+async def rabbitmq_shutdown():
+    """Stop RabbitMQ session"""
+    async with session.post('rabbitmq/shutdown'):
+        pass
+
+
+async def rabbitmq_is_opened() -> bool:
+    """Check if RabbitMQ session is opened"""
+    async with session.get('rabbitmq/is_opened') as resp:
+        return await resp.json()

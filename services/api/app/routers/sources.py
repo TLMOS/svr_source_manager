@@ -8,31 +8,22 @@ from fastapi import APIRouter, HTTPException, UploadFile
 from common.constants import SourceStatus
 from common import schemas
 from app.config import settings
-from app import crud, source_processor_client
-from app.database import SessionDep
+from app import crud
+from app.dependencies import SessionDep
+from app.clients import source_processor
 
 
 router = APIRouter(
-    prefix="/sources",
-    tags=["Source management"]
+    prefix='/sources',
+    tags=['Source management']
 )
 
 
-@router.on_event("startup")
-async def startup():
-    await source_processor_client.session.startup()
-
-
-@router.on_event("shutdown")
-async def shutdown():
-    await source_processor_client.session.shutdown()
-
-
 @router.post(
-    "/create/url",
+    '/create/url',
     response_model=schemas.Source,
-    summary="Create source from url",
-    response_description="Source created"
+    summary='Create source from url',
+    response_description='Source created'
 )
 async def create_from_url(session: SessionDep, name: str, url: str):
     """
@@ -51,10 +42,10 @@ async def create_from_url(session: SessionDep, name: str, url: str):
 
 
 @router.post(
-    "/create/file",
+    '/create/file',
     response_model=schemas.Source,
-    summary="Create source from file",
-    response_description="Source created"
+    summary='Create source from file',
+    response_description='Source created'
 )
 async def create_from_file(session: SessionDep, name: str, file: UploadFile):
     """
@@ -84,10 +75,10 @@ async def create_from_file(session: SessionDep, name: str, file: UploadFile):
 
 
 @router.get(
-    "/get/{id:int}",
+    '/get/{id:int}',
     response_model=schemas.Source,
-    summary="Get source by id",
-    response_description="Source found"
+    summary='Get source by id',
+    response_description='Source found'
 )
 async def get(session: SessionDep, id: int):
     """
@@ -104,15 +95,15 @@ async def get(session: SessionDep, id: int):
     """
     db_source = await crud.sources.read(session, id)
     if db_source is None:
-        raise HTTPException(status_code=404, detail="Source not found")
+        raise HTTPException(status_code=404, detail='Source not found')
     return db_source
 
 
 @router.get(
-    "/get/all",
+    '/get/all',
     response_model=list[schemas.Source],
-    summary="Get list of all sources",
-    response_description="List of all sources"
+    summary='Get list of all sources',
+    response_description='List of all sources'
 )
 async def get_all(session: SessionDep, status: SourceStatus | None = None):
     """
@@ -129,9 +120,9 @@ async def get_all(session: SessionDep, status: SourceStatus | None = None):
 
 
 @router.get(
-    "/get/time_coverage",
-    summary="Get all saved time intervals from source",
-    response_description="Video chunks",
+    '/get/time_coverage',
+    summary='Get all saved time intervals from source',
+    response_description='Video chunks',
     response_model=list[tuple[float, float]]
 )
 async def get_time_coverage(session: SessionDep, id: int):
@@ -149,13 +140,13 @@ async def get_time_coverage(session: SessionDep, id: int):
     """
     db_chunks = await crud.video_chunks.read_all(session, id)
     if db_chunks is None:
-        raise HTTPException(status_code=404, detail="Video chunks not found")
+        raise HTTPException(status_code=404, detail='Video chunks not found')
     return [(db_chunk.start_time, db_chunk.end_time) for db_chunk in db_chunks]
 
 
 @router.put(
-    "/start",
-    summary="Start source"
+    '/start',
+    summary='Start source'
 )
 async def start(session: SessionDep, id: int):
     """
@@ -174,16 +165,16 @@ async def start(session: SessionDep, id: int):
     """
     db_source = await crud.sources.read(session, id)
     if db_source is None:
-        raise HTTPException(status_code=404, detail="Source not found")
+        raise HTTPException(status_code=404, detail='Source not found')
     if db_source.status_code == SourceStatus.ACTIVE:
-        raise HTTPException(status_code=400, detail="Source already active")
+        raise HTTPException(status_code=400, detail='Source already active')
     await crud.sources.update_status(session, id, SourceStatus.ACTIVE)
-    await source_processor_client.add(db_source)
+    await source_processor.add(db_source)
 
 
 @router.put(
-    "/pause",
-    summary="Pause source"
+    '/pause',
+    summary='Pause source'
 )
 async def pause(session: SessionDep, id: int):
     """
@@ -198,16 +189,16 @@ async def pause(session: SessionDep, id: int):
     """
     db_source = await crud.sources.read(session, id)
     if db_source is None:
-        raise HTTPException(status_code=404, detail="Source not found")
+        raise HTTPException(status_code=404, detail='Source not found')
     if db_source.status_code != SourceStatus.ACTIVE:
-        raise HTTPException(status_code=400, detail="Source not active")
-    await source_processor_client.remove(id)
+        raise HTTPException(status_code=400, detail='Source not active')
+    await source_processor.remove(id)
     await crud.sources.update_status(session, id, SourceStatus.PAUSED)
 
 
 @router.put(
-    "/finish",
-    summary="Finish source"
+    '/finish',
+    summary='Finish source'
 )
 async def finish(session: SessionDep, id: int):
     """
@@ -224,17 +215,17 @@ async def finish(session: SessionDep, id: int):
     """
     db_source = await crud.sources.read(session, id)
     if db_source is None:
-        raise HTTPException(status_code=404, detail="Source not found")
+        raise HTTPException(status_code=404, detail='Source not found')
     if db_source.status_code == SourceStatus.FINISHED:
-        raise HTTPException(status_code=400, detail="Source already finished")
+        raise HTTPException(status_code=400, detail='Source already finished')
     if db_source.status_code == SourceStatus.ACTIVE:
-        await source_processor_client.remove(id)
+        await source_processor.remove(id)
     await crud.sources.update_status(session, id, SourceStatus.FINISHED)
 
 
 @router.put(
-    "/update_status",
-    summary="Update source status"
+    '/update_status',
+    summary='Update source status'
 )
 async def update_status(session: SessionDep, id: int, status: SourceStatus,
                         status_msg: str = None):
@@ -251,13 +242,13 @@ async def update_status(session: SessionDep, id: int, status: SourceStatus,
     """
     db_source = await crud.sources.read(session, id)
     if db_source is None:
-        raise HTTPException(status_code=404, detail="Source not found")
+        raise HTTPException(status_code=404, detail='Source not found')
     await crud.sources.update_status(session, id, status, status_msg)
 
 
 @router.delete(
-    "/delete",
-    summary="Delete source"
+    '/delete',
+    summary='Delete source'
 )
 async def delete(session: SessionDep, id: int):
     """
@@ -273,9 +264,9 @@ async def delete(session: SessionDep, id: int):
     """
     db_source = await crud.sources.read(session, id)
     if db_source is None:
-        raise HTTPException(status_code=404, detail="Source not found")
+        raise HTTPException(status_code=404, detail='Source not found')
     if db_source.status_code == SourceStatus.ACTIVE:
-        await source_processor_client.remove(id)
+        await source_processor.remove(id)
     await crud.sources.delete(session, id)  # Chunks are deleted by cascade
     if db_source.url.startswith('file://'):  # Delete source file if local
         path = Path(db_source.url[7:])
