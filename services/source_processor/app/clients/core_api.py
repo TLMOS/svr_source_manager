@@ -1,13 +1,24 @@
+from typing import Optional
+
 import aiohttp
 from fastapi import HTTPException
 
 from common.http_client import AsyncClientSession
 from common.constants import SourceStatus
 from common.schemas import VideoChunkCreate, Source
-from app.config import settings
+from common.config import settings
 
 
-session = AsyncClientSession(settings.api_url)
+session = AsyncClientSession(settings.api.url)
+
+
+@session.prepare_request
+async def prepare_request(route: str, kwargs: dict[str, any]):
+    if 'headers' not in kwargs:
+        kwargs['headers'] = {}
+    kwargs['headers']['X-Is-Local'] = 'true'  # Do not require token auth
+    kwargs['headers']['Authorization'] = 'Bearer None'
+    return route, kwargs
 
 
 @session.on_response
@@ -44,14 +55,14 @@ async def get_all_active_sources() -> list[Source]:
 
 
 async def update_source_status(id: int, status: SourceStatus,
-                               status_msg: str | None = None):
+                               status_msg: Optional[str] = None):
     """
     Update source status.
 
     Parameters:
     - id (int): source id
     - status (SourceStatus): new source status
-    - status_msg (str | None): status message
+    - status_msg (Optional[str]): new source status message
     """
     params = {'id': id, 'status': status.value, 'status_msg': status_msg}
     async with session.put('sources/update_status', params=params):

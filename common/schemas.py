@@ -1,5 +1,6 @@
 """Pydantic schemas for the data server."""
 
+from typing import Optional
 from pydantic import BaseModel
 from common.constants import SourceStatus
 
@@ -16,7 +17,7 @@ class SourceCreate(SourceBase):
 class Source(SourceBase):
     id: int
     status_code: SourceStatus
-    status_msg: str | None = None
+    status_msg: Optional[str] = None
 
     class Config:
         orm_mode = True

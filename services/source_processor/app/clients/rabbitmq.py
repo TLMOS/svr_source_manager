@@ -2,8 +2,8 @@ import pika
 from pika.exceptions import AMQPConnectionError
 from fastapi import HTTPException
 
+from common.config import settings
 from common import schemas
-from app.config import settings
 
 
 class PikaSession:
@@ -22,9 +22,9 @@ class PikaSession:
         try:
             self._connection = pika.BlockingConnection(
                 pika.ConnectionParameters(
-                    host=settings.rabbitmq_host,
-                    port=settings.rabbitmq_port,
-                    virtual_host=settings.rabbitmq_vhost,
+                    host=settings.rabbitmq.host,
+                    port=settings.rabbitmq.port,
+                    virtual_host=settings.rabbitmq.vhost,
                     credentials=pika.PlainCredentials(
                         username=username,
                         password=password
@@ -69,7 +69,7 @@ def publish_video_chunk(chunk: schemas.VideoChunkCreate):
         content = f.read()
 
     session.publish(
-        exchange=settings.rabbitmq_exchange,
+        exchange=settings.rabbitmq.exchange,
         routing_key='',
         body=content,
         properties=pika.BasicProperties(

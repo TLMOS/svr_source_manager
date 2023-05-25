@@ -22,7 +22,7 @@ Source processing steps:
 app = FastAPI(
     title='SVR Source Processor API',
     description=description,
-    version='0.2.3',
+    version='0.3.1',
     license_info={
         'name': 'MIT License',
         'url': 'https://opensource.org/licenses/mit-license.php'

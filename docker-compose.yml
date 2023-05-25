@@ -11,16 +11,6 @@ services:
       - ./postgresql/init:/docker-entrypoint-initdb.d
       - ./postgresql/data:/var/lib/postgresql/data
     restart: unless-stopped
-  web:
-    build: ./services/web
-    container_name: svr_sm_web
-    env_file: ./.env
-    volumes:
-      - ./common:/home/common
-      - ./static:/home/app/static
-    restart: unless-stopped
-    depends_on:
-      - db
   api:
     build: ./services/api
     container_name: svr_sm_api
@@ -44,11 +34,8 @@ services:
   nginx:
     build: ./services/nginx
     container_name: svr_sm_nginx
-    volumes:
-      - ./static:/www/web/static
     restart: unless-stopped
     ports:
       - 8080:8080
     depends_on:
-      - web
       - api

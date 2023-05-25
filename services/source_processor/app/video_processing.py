@@ -9,13 +9,14 @@ from pathlib import Path
 import time
 from datetime import datetime
 import requests
+from typing import Optional
 
 import numpy as np
 import cv2
 
+from common.config import settings
 from common.constants import SourceStatus
 from common.schemas import Source, VideoChunkCreate
-from app.config import settings
 from app.clients import core_api, rabbitmq
 
 
@@ -67,11 +68,11 @@ class VideoCapture(SourceCapture):
     Makes sure that video is opened and closed correctly.
     """
 
-    _cap: cv2.VideoCapture | None = None
+    _cap: Optional[cv2.VideoCapture] = None
     _frames_read: int = 0
-    _frames_total: int | None = None
-    _fps: float | None = None
-    _skip_frames: int | None = None
+    _frames_total: Optional[int] = None
+    _fps: Optional[float] = None
+    _skip_frames: Optional[int] = None
 
     def __enter__(self):
         self._cap = cv2.VideoCapture(self.url)
@@ -79,7 +80,7 @@ class VideoCapture(SourceCapture):
             self._frames_read = 0
             self._frames_total = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
             self._fps = self._cap.get(cv2.CAP_PROP_FPS)
-            self._skip_frames = max(0, int(self._fps / settings.chunk_fps) - 1)
+            self._skip_frames = max(0, int(self._fps / settings.video.chunk_fps) - 1)
             return self
         else:
             raise ValueError('Can not open video capture')
@@ -164,8 +165,8 @@ class VideoWriter:
         self._out = cv2.VideoWriter(
             filename=self.path.as_posix(),
             fourcc=fourcc,
-            fps=settings.chunk_fps,
-            frameSize=settings.frame_size,
+            fps=settings.video.chunk_fps,
+            frameSize=settings.video.frame_size,
         )
         if self._out is None or not self._out.isOpened():
             raise ValueError('Can not open video writer')
@@ -269,9 +270,9 @@ class SourceProcessor:
         Parameters:
         - source (schemas.Source) - source to process
         """
-        save_dir = settings.chunks_dir / str(source.id)
+        save_dir = settings.paths.chunks_dir / str(source.id)
         save_dir.mkdir(parents=True, exist_ok=True)
-        fps, duration = settings.chunk_fps, settings.chunk_duration
+        fps, duration = settings.video.chunk_fps, settings.video.chunk_duration
         number_of_frames = int(fps * duration)
         chunks_count = len(list(save_dir.glob('*.mp4')))
         status, status_msg = SourceStatus.FINISHED, ''
@@ -285,8 +286,8 @@ class SourceProcessor:
                                 break
                             read_time = time.time()
                             frame = await cap.read()
-                            frame = cv2.resize(frame, settings.frame_size)
-                            if settings.draw_timestamp:
+                            frame = cv2.resize(frame, settings.video.frame_size)
+                            if settings.video.draw_timestamp:
                                 frame = add_timestamp(frame, read_time)
                             writer.write(frame)
                             delay = 1 / fps - (time.time() - read_time)

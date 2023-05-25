@@ -1,4 +1,4 @@
-from typing import Any, Callable, Awaitable
+from typing import Callable, Awaitable
 from contextlib import asynccontextmanager
 
 import aiohttp
@@ -34,6 +34,7 @@ class AsyncClientSession:
     _on_startup: Callable[[], Awaitable[None]] = None
     _on_shutdown: Callable[[], Awaitable[None]] = None
     _on_response: Callable[[aiohttp.ClientResponse], Awaitable[None]] = None
+    _prepare_request: Callable[[str], Awaitable[tuple[str, dict[str, any]]]] = None
 
     def __init__(self, url: str):
         self.url = url
@@ -56,28 +57,36 @@ class AsyncClientSession:
             await self._on_shutdown()
 
     @asynccontextmanager
-    async def get(self, route: str, **kwargs: Any) -> aiohttp.ClientResponse:
+    async def get(self, route: str, **kwargs: any) -> aiohttp.ClientResponse:
+        if self._prepare_request:
+            route, kwargs = await self._prepare_request(route, kwargs)
         async with self.__session.get(f'{self.url}/{route}', **kwargs) as resp:
             if self._on_response:
                 await self._on_response(resp)
             yield resp
 
     @asynccontextmanager
-    async def post(self, route: str, **kwargs: Any) -> aiohttp.ClientResponse:
+    async def post(self, route: str, **kwargs: any) -> aiohttp.ClientResponse:
+        if self._prepare_request:
+            route, kwargs = await self._prepare_request(route, kwargs)
         async with self.__session.post(f'{self.url}/{route}', **kwargs) as resp:
             if self._on_response:
                 await self._on_response(resp)
             yield resp
 
     @asynccontextmanager
-    async def put(self, route: str, **kwargs: Any) -> aiohttp.ClientResponse:
+    async def put(self, route: str, **kwargs: any) -> aiohttp.ClientResponse:
+        if self._prepare_request:
+            route, kwargs = await self._prepare_request(route, kwargs)
         async with self.__session.put(f'{self.url}/{route}', **kwargs) as resp:
             if self._on_response:
                 await self._on_response(resp)
             yield resp
 
     @asynccontextmanager
-    async def delete(self, route: str, **kwargs: Any) -> aiohttp.ClientResponse:
+    async def delete(self, route: str, **kwargs: any) -> aiohttp.ClientResponse:
+        if self._prepare_request:
+            route, kwargs = await self._prepare_request(route, kwargs)
         async with self.__session.delete(f'{self.url}/{route}', **kwargs) as resp:
             if self._on_response:
                 await self._on_response(resp)
@@ -100,6 +109,15 @@ class AsyncClientSession:
         Can be used for error handling.
         """
         self._on_response = func
+        return func
+
+    def prepare_request(self, func: Callable[[str], Awaitable[tuple[str, dict[str, any]]]]):
+        """
+        Set request callback.
+        Called before every request.
+        Can be used for request preparation.
+        """
+        self._prepare_request = func
         return func
 
 
@@ -132,6 +150,7 @@ class ClientSession:
     _on_startup: Callable[[], None] = None
     _on_shutdown: Callable[[], None] = None
     _on_response: Callable[[requests.Response], None] = None
+    _prepare_request: Callable[[str], tuple[str, dict[str, any]]] = None
 
     def __init__(self, url: str):
         self.url = url
@@ -149,25 +168,33 @@ class ClientSession:
         if self._on_shutdown:
             self._on_shutdown()
 
-    def get(self, route: str, **kwargs: Any) -> requests.Response:
+    def get(self, route: str, **kwargs: any) -> requests.Response:
+        if self._prepare_request:
+            route, kwargs = self._prepare_request(route, kwargs)
         resp = requests.get(f'{self.url}/{route}', **kwargs)
         if self._on_response:
             self._on_response(resp)
         return resp
 
-    def post(self, route: str, **kwargs: Any) -> requests.Response:
+    def post(self, route: str, **kwargs: any) -> requests.Response:
+        if self._prepare_request:
+            route, kwargs = self._prepare_request(route, kwargs)
         resp = requests.post(f'{self.url}/{route}', **kwargs)
         if self._on_response:
             self._on_response(resp)
         return resp
 
-    def put(self, route: str, **kwargs: Any) -> requests.Response:
+    def put(self, route: str, **kwargs: any) -> requests.Response:
+        if self._prepare_request:
+            route, kwargs = self._prepare_request(route, kwargs)
         resp = requests.put(f'{self.url}/{route}', **kwargs)
         if self._on_response:
             self._on_response(resp)
         return resp
 
-    def delete(self, route: str, **kwargs: Any) -> requests.Response:
+    def delete(self, route: str, **kwargs: any) -> requests.Response:
+        if self._prepare_request:
+            route, kwargs = self._prepare_request(route, kwargs)
         resp = requests.delete(f'{self.url}/{route}', **kwargs)
         if self._on_response:
             self._on_response(resp)
@@ -190,4 +217,13 @@ class ClientSession:
         Can be used for error handling.
         """
         self._on_response = func
+        return func
+
+    def prepare_request(self, func: Callable[[str], tuple[str, dict[str, any]]]):
+        """
+        Set request callback.
+        Called before every request.
+        Can be used for request preparation.
+        """
+        self._prepare_request = func
         return func

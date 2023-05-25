@@ -2,20 +2,23 @@ import os
 from pathlib import Path
 import re
 import shutil
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, UploadFile, Security
 
 from common.constants import SourceStatus
 from common import schemas
-from app.config import settings
+from common.config import settings
+from app.security import auth
 from app import crud
-from app.dependencies import SessionDep
+from app.dependencies import DatabaseDepends
 from app.clients import source_processor
 
 
 router = APIRouter(
     prefix='/sources',
-    tags=['Source management']
+    tags=['Source management'],
+    dependencies=[Security(auth.requires_auth)]
 )
 
 
@@ -25,7 +28,7 @@ router = APIRouter(
     summary='Create source from url',
     response_description='Source created'
 )
-async def create_from_url(session: SessionDep, name: str, url: str):
+async def create_from_url(db: DatabaseDepends, name: str, url: str):
     """
     Create source from url.
     By default, the source is paused. To start it, use the /sources/start
@@ -38,7 +41,7 @@ async def create_from_url(session: SessionDep, name: str, url: str):
     - schemas.Source: created source
     """
     source = schemas.SourceCreate(name=name, url=url)
-    return await crud.sources.create(session, source)
+    return await crud.sources.create(db, source)
 
 
 @router.post(
@@ -47,7 +50,7 @@ async def create_from_url(session: SessionDep, name: str, url: str):
     summary='Create source from file',
     response_description='Source created'
 )
-async def create_from_file(session: SessionDep, name: str, file: UploadFile):
+async def create_from_file(db: DatabaseDepends, name: str, file: UploadFile):
     """
     Create source from file.
     By default, the source is paused. To start it, use the /sources/start
@@ -61,17 +64,17 @@ async def create_from_file(session: SessionDep, name: str, file: UploadFile):
     """
     file_name = file.filename.replace(' ', '_')
     file_name = re.sub(r'[^a-zA-Z0-9_.-]', '', file_name)
-    path = settings.sources_dir / file_name
+    path = settings.paths.sources_dir / file_name
     count = 1
     while path.is_file():
         stem, ext = os.path.splitext(file_name)
-        path = settings.sources_dir / f'{stem}_{count}{ext}'
+        path = settings.paths.sources_dir / f'{stem}_{count}{ext}'
         count += 1
     with open(path, 'wb') as out_file:
         while content := file.file.read(1024):
             out_file.write(content)
     source = schemas.SourceCreate(name=name, url=path.as_uri())
-    return await crud.sources.create(session, source)
+    return await crud.sources.create(db, source)
 
 
 @router.get(
@@ -80,7 +83,7 @@ async def create_from_file(session: SessionDep, name: str, file: UploadFile):
     summary='Get source by id',
     response_description='Source found'
 )
-async def get(session: SessionDep, id: int):
+async def get(db: DatabaseDepends, id: int):
     """
     Get source by id.
 
@@ -93,7 +96,7 @@ async def get(session: SessionDep, id: int):
     Returns:
     - schemas.Source: source
     """
-    db_source = await crud.sources.read(session, id)
+    db_source = await crud.sources.read(db, id)
     if db_source is None:
         raise HTTPException(status_code=404, detail='Source not found')
     return db_source
@@ -105,7 +108,7 @@ async def get(session: SessionDep, id: int):
     summary='Get list of all sources',
     response_description='List of all sources'
 )
-async def get_all(session: SessionDep, status: SourceStatus | None = None):
+async def get_all(db: DatabaseDepends, status: Optional[SourceStatus] = None):
     """
     Get list of all sources.
 
@@ -115,7 +118,7 @@ async def get_all(session: SessionDep, status: SourceStatus | None = None):
     Returns:
     - list[schemas.Source]: list of all sources
     """
-    db_sources = await crud.sources.read_all(session, status)
+    db_sources = await crud.sources.read_all(db, status)
     return db_sources
 
 
@@ -125,7 +128,7 @@ async def get_all(session: SessionDep, status: SourceStatus | None = None):
     response_description='Video chunks',
     response_model=list[tuple[float, float]]
 )
-async def get_time_coverage(session: SessionDep, id: int):
+async def get_time_coverage(db: DatabaseDepends, id: int):
     """
     Get all saved time intervals from source.
 
@@ -138,7 +141,7 @@ async def get_time_coverage(session: SessionDep, id: int):
     Returns:
     - list[tuple[float, float]]: list of time intervals (start, end)
     """
-    db_chunks = await crud.video_chunks.read_all(session, id)
+    db_chunks = await crud.video_chunks.read_all(db, id)
     if db_chunks is None:
         raise HTTPException(status_code=404, detail='Video chunks not found')
     return [(db_chunk.start_time, db_chunk.end_time) for db_chunk in db_chunks]
@@ -148,7 +151,7 @@ async def get_time_coverage(session: SessionDep, id: int):
     '/start',
     summary='Start source'
 )
-async def start(session: SessionDep, id: int):
+async def start(db: DatabaseDepends, id: int):
     """
     Start source processing in background:
     - Get frames from source url
@@ -163,12 +166,12 @@ async def start(session: SessionDep, id: int):
     - HTTPException 404: If source not found in the database
     - HTTPException 400: If source already active
     """
-    db_source = await crud.sources.read(session, id)
+    db_source = await crud.sources.read(db, id)
     if db_source is None:
         raise HTTPException(status_code=404, detail='Source not found')
     if db_source.status_code == SourceStatus.ACTIVE:
         raise HTTPException(status_code=400, detail='Source already active')
-    await crud.sources.update_status(session, id, SourceStatus.ACTIVE)
+    await crud.sources.update_status(db, id, SourceStatus.ACTIVE)
     await source_processor.add(db_source)
 
 
@@ -176,7 +179,7 @@ async def start(session: SessionDep, id: int):
     '/pause',
     summary='Pause source'
 )
-async def pause(session: SessionDep, id: int):
+async def pause(db: DatabaseDepends, id: int):
     """
     Pause source processing.
 
@@ -187,20 +190,20 @@ async def pause(session: SessionDep, id: int):
     - HTTPException 404: If source not found in the database
     - HTTPException 400: If source not active
     """
-    db_source = await crud.sources.read(session, id)
+    db_source = await crud.sources.read(db, id)
     if db_source is None:
         raise HTTPException(status_code=404, detail='Source not found')
     if db_source.status_code != SourceStatus.ACTIVE:
         raise HTTPException(status_code=400, detail='Source not active')
     await source_processor.remove(id)
-    await crud.sources.update_status(session, id, SourceStatus.PAUSED)
+    await crud.sources.update_status(db, id, SourceStatus.PAUSED)
 
 
 @router.put(
     '/finish',
     summary='Finish source'
 )
-async def finish(session: SessionDep, id: int):
+async def finish(db: DatabaseDepends, id: int):
     """
     Pause source processing and mark it as finished.
     If you create source from file, it will be automatically set as finished,
@@ -213,21 +216,21 @@ async def finish(session: SessionDep, id: int):
     - HTTPException 404: If source not found in the database
     - HTTPException 400: If source already finished
     """
-    db_source = await crud.sources.read(session, id)
+    db_source = await crud.sources.read(db, id)
     if db_source is None:
         raise HTTPException(status_code=404, detail='Source not found')
     if db_source.status_code == SourceStatus.FINISHED:
         raise HTTPException(status_code=400, detail='Source already finished')
     if db_source.status_code == SourceStatus.ACTIVE:
         await source_processor.remove(id)
-    await crud.sources.update_status(session, id, SourceStatus.FINISHED)
+    await crud.sources.update_status(db, id, SourceStatus.FINISHED)
 
 
 @router.put(
     '/update_status',
     summary='Update source status'
 )
-async def update_status(session: SessionDep, id: int, status: SourceStatus,
+async def update_status(db: DatabaseDepends, id: int, status: SourceStatus,
                         status_msg: str = None):
     """
     Update source status and status message.
@@ -240,17 +243,17 @@ async def update_status(session: SessionDep, id: int, status: SourceStatus,
     Raises:
     - HTTPException 404: If source not found in the database
     """
-    db_source = await crud.sources.read(session, id)
+    db_source = await crud.sources.read(db, id)
     if db_source is None:
         raise HTTPException(status_code=404, detail='Source not found')
-    await crud.sources.update_status(session, id, status, status_msg)
+    await crud.sources.update_status(db, id, status, status_msg)
 
 
 @router.delete(
     '/delete',
     summary='Delete source'
 )
-async def delete(session: SessionDep, id: int):
+async def delete(db: DatabaseDepends, id: int):
     """
     Remove source.
     Video chunks will be deleted from disk and database.
@@ -262,15 +265,15 @@ async def delete(session: SessionDep, id: int):
     Raises:
     - HTTPException 404: If source not found in the database
     """
-    db_source = await crud.sources.read(session, id)
+    db_source = await crud.sources.read(db, id)
     if db_source is None:
         raise HTTPException(status_code=404, detail='Source not found')
     if db_source.status_code == SourceStatus.ACTIVE:
         await source_processor.remove(id)
-    await crud.sources.delete(session, id)  # Chunks are deleted by cascade
+    await crud.sources.delete(db, id)  # Chunks are deleted by cascade
     if db_source.url.startswith('file://'):  # Delete source file if local
         path = Path(db_source.url[7:])
         path.unlink()
-    source_dir = settings.chunks_dir / str(id)
+    source_dir = settings.paths.chunks_dir / str(id)
     if source_dir.is_dir():
         shutil.rmtree(source_dir)  # Delete video chunks

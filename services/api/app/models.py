@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, String, ForeignKey
+from sqlalchemy import Column, Integer, Float, Boolean, String, ForeignKey
 from sqlalchemy.orm import relationship
 
 from common.constants import SourceStatus
@@ -11,6 +11,7 @@ class Secret(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)
     value = Column(String, nullable=False)
+    encrypted = Column(Boolean, default=False, nullable=False)
 
 
 class Source(Base):

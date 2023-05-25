@@ -3,11 +3,11 @@ from fastapi import HTTPException
 
 from common import schemas
 from common.http_client import AsyncClientSession
-from app.config import settings
+from common.config import settings
 from app import models
 
 
-session = AsyncClientSession(settings.source_processor_url)
+session = AsyncClientSession(settings.source_processor.url)
 
 
 @session.on_response

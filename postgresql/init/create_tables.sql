@@ -2,7 +2,8 @@ CREATE TABLE "secret"
 (
   id SERIAL PRIMARY KEY,
   "name" VARCHAR(256) NOT NULL,
-  "value" VARCHAR(256),
+  "value" VARCHAR(512),
+  "encrypted" BOOLEAN NOT NULL DEFAULT FALSE,
   UNIQUE ("name")
 );
 

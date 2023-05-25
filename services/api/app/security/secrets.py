@@ -1,10 +1,13 @@
 import os
 from base64 import urlsafe_b64encode as b64e, urlsafe_b64decode as b64d
 
-import bcrypt
+from passlib.context import CryptContext
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+
+pwd_context = CryptContext(schemes=['argon2'], deprecated=['auto'])
 
 
 def _derive_key(password: bytes, salt: bytes) -> bytes:
@@ -27,7 +30,7 @@ def _derive_key(password: bytes, salt: bytes) -> bytes:
     return b64e(kdf.derive(password))
 
 
-def encrypt_secret(secret: str, password: str) -> str:
+def encrypt(secret: str, password: str) -> str:
     """
     Encrypt a secret with a password using Fernet.
 
@@ -44,7 +47,7 @@ def encrypt_secret(secret: str, password: str) -> str:
     return b64e(b'%b%b' % (salt, b64d(Fernet(key).encrypt(secret)))).decode()
 
 
-def decrypt_secret(secret: str, password: str) -> str:
+def decrypt(secret: str, password: str) -> str:
     """
     Decrypt a secret with a password using Fernet.
 
@@ -62,7 +65,7 @@ def decrypt_secret(secret: str, password: str) -> str:
     return Fernet(key).decrypt(secret).decode()
 
 
-def verify_secret(plain_secret: str, hashed_secret: str) -> bool:
+def verify(plain_secret: str, hashed_secret: str) -> bool:
     """
     Verify a secret against a hash using slow hashing.
 
@@ -73,10 +76,10 @@ def verify_secret(plain_secret: str, hashed_secret: str) -> bool:
     Returns:
     - bool: True if secret is correct, False otherwise
     """
-    return bcrypt.checkpw(plain_secret.encode(), hashed_secret.encode())
+    return pwd_context.verify(plain_secret, hashed_secret)
 
 
-def hash_secret(secret) -> str:
+def hash(secret) -> str:
     """
     Get a hash of a secret using bcrypt.
 
@@ -86,4 +89,4 @@ def hash_secret(secret) -> str:
     Returns:
     - str: Hashed secret
     """
-    return bcrypt.hashpw(secret.encode(), bcrypt.gensalt()).decode()
+    return pwd_context.hash(secret)

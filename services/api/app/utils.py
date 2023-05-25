@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 import cv2
 
-from app.config import settings
+from common.config import settings
 
 
 class TmpFilePath:
@@ -24,7 +24,7 @@ class TmpFilePath:
         self.extension = extension
 
     def __call__(self) -> Path:
-        path = settings.tmp_dir / f'{uuid.uuid4()}{self.extension}'
+        path = settings.paths.tmp_dir / f'{uuid.uuid4()}{self.extension}'
         try:
             yield path
         finally:
