@@ -46,7 +46,7 @@ async def create_chunk(db: DatabaseDepends,
 
 
 @router.get(
-    '/frames/get/last',
+    '/get/frame/last',
     summary='Get last saved frame from source',
     response_description='Frame',
     response_class=Response
@@ -79,7 +79,7 @@ async def get_last_frame(db: DatabaseDepends, source_id: int):
 
 
 @router.get(
-    '/frame/get/timestamp',
+    '/get/frame/timestamp',
     summary='Get frame by timestamp',
     response_description='Frame',
     response_class=Response
@@ -116,7 +116,7 @@ async def get_frame_by_timestamp(db: DatabaseDepends, source_id: int,
 
 
 @router.get(
-    '/video/get/chunk',
+    '/get/chunk',
     summary='Get video chunk',
     response_description='Video chunk',
     response_class=FileResponse
@@ -142,7 +142,7 @@ async def get_video_chunk(db: DatabaseDepends, chunk_id: int):
 
 
 @router.get(
-    '/video/get/part',
+    '/get/part',
     summary='Get video part in given time interval',
     response_description='Video part',
     response_class=FileResponse
