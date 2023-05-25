@@ -8,7 +8,6 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 import time
 from datetime import datetime
-import requests
 from typing import Optional
 
 import numpy as np
@@ -31,10 +30,10 @@ class SourceCapture(ABC):
     def __init__(self, url: str):
         self.url = url
 
-    def __enter__(self):
+    async def __aenter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    async def __aexit__(self, exc_type, exc_value, traceback):
         pass
 
     @abstractmethod
@@ -51,15 +50,26 @@ class SourceCapture(ABC):
 class ImageCapture(SourceCapture):
     """Context manager for capturing frames from image url"""
 
+    async def __aenter__(self):
+        self._session = aiohttp.ClientSession()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self._session.close()
+
     def has_next(self) -> bool:
         return True
 
     async def read(self) -> np.ndarray:
-        # TODO: Mistery of a wierd deadlock
-        response = requests.get(self.url, timeout=settings.capture_timeout)
-        if self.url.startswith('http') and response.code != 200:
-            raise ValueError('Can not read next frame')
-        return response.content
+        async with self._session.get(self.url) as response:
+            if self.url.startswith('http') and response.status != 200:
+                raise ValueError('Can not read next frame')
+            content = await response.read()
+            frame = cv2.imdecode(
+                np.frombuffer(content, dtype=np.uint8),
+                cv2.IMREAD_COLOR
+            )
+            return frame
 
 
 class VideoCapture(SourceCapture):
@@ -74,7 +84,7 @@ class VideoCapture(SourceCapture):
     _fps: Optional[float] = None
     _skip_frames: Optional[int] = None
 
-    def __enter__(self):
+    async def __aenter__(self):
         self._cap = cv2.VideoCapture(self.url)
         if self._cap.isOpened():
             self._frames_read = 0
@@ -85,7 +95,7 @@ class VideoCapture(SourceCapture):
         else:
             raise ValueError('Can not open video capture')
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    async def __aexit__(self, exc_type, exc_value, traceback):
         self._cap.release()
 
     def has_next(self) -> bool:
@@ -110,6 +120,13 @@ class StreamCapture(SourceCapture):
 
     _frame_byte_size: int = 1024
 
+    async def __aenter__(self):
+        self._session = aiohttp.ClientSession()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self._session.close()
+
     def has_next(self) -> bool:
         return True
 
@@ -119,26 +136,25 @@ class StreamCapture(SourceCapture):
             content_length = None
             bytes = b''
             i = 0
-            async with aiohttp.ClientSession() as session:
-                async with session.get(self.url) as resp:
-                    async for line in resp.content:
-                        i += 1
-                        if content_length is not None:
-                            if len(bytes) < content_length:
-                                bytes += line
-                            else:
-                                jpg = bytes[2:-2]
-                                frame = cv2.imdecode(
-                                    np.fromstring(jpg, dtype=np.uint8),
-                                    cv2.IMREAD_COLOR
-                                )
-                                return frame
-                        elif b'Content-Length' in line:
-                            content_length = int(line.split()[1])
-                            if content_length < 100:
-                                break
-                        elif i > 100:
+            async with self._session.get(self.url) as resp:
+                async for line in resp.content:
+                    i += 1
+                    if content_length is not None:
+                        if len(bytes) < content_length:
+                            bytes += line
+                        else:
+                            jpg = bytes[2:-2]
+                            frame = cv2.imdecode(
+                                np.frombuffer(jpg, dtype=np.uint8),
+                                cv2.IMREAD_COLOR
+                            )
+                            return frame
+                    elif b'Content-Length' in line:
+                        content_length = int(line.split()[1])
+                        if content_length < 100:
                             break
+                    elif i > 100:
+                        break
         raise ValueError('Can not read next frame')
 
 
@@ -277,7 +293,7 @@ class SourceProcessor:
         chunks_count = len(list(save_dir.glob('*.mp4')))
         status, status_msg = SourceStatus.FINISHED, ''
         try:
-            with open_source(source.url) as cap:
+            async with open_source(source.url) as cap:
                 while cap.has_next():
                     chunk_path = save_dir / f'{chunks_count}.mp4'
                     async with ChunkWriter(source.id, chunk_path) as writer:

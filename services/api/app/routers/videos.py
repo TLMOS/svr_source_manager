@@ -1,4 +1,5 @@
 from pathlib import Path
+import tempfile
 
 from fastapi import APIRouter, HTTPException, Security
 from fastapi.responses import Response, FileResponse
@@ -9,7 +10,7 @@ from common.config import settings
 from app.security import auth
 from app import crud
 from app.dependencies import DatabaseDepends
-from app.utils import open_video_capture, open_video_writer, TmpFilePath
+from app.utils import open_video_capture, open_video_writer
 
 
 router = APIRouter(
@@ -61,7 +62,7 @@ async def get_last_frame(db: DatabaseDepends, source_id: int):
     Raises:
     - HTTPException 400: If frame capture failed
     - HTTPException 404: If no corresponding video chunk found in
-        the database
+                         the database
     """
     db_chunk = await crud.video_chunks.read_last(db, source_id)
     if db_chunk is None:
@@ -172,8 +173,8 @@ async def get_video_part(db: DatabaseDepends, source_id: int,
                 status_code=404,
                 detail='No video chunks found in given interval'
         )
-    with TmpFilePath('.mp4') as path:
-        with open_video_writer(path) as out:
+    with tempfile.NamedTemporaryFile(dir=settings.paths.tmp_dir) as f:
+        with open_video_writer(f.name) as out:
             for i, chunk in enumerate(chunks):
                 uri = Path(chunk.file_path).as_uri()
                 with open_video_capture(uri) as cap:
@@ -188,4 +189,4 @@ async def get_video_part(db: DatabaseDepends, source_id: int,
                         ret, frame = cap.read()
                         if ret:
                             out.write(frame)
-        return FileResponse(path=path, media_type='video/mp4')
+        return FileResponse(path=f.name, media_type='video/mp4')

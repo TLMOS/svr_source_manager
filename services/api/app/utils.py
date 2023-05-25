@@ -1,35 +1,9 @@
 from pathlib import Path
-import uuid
 from contextlib import contextmanager
 
 import cv2
 
 from common.config import settings
-
-
-class TmpFilePath:
-    """
-    Context manager to create a temporary file and delete it after use.
-
-    Attributes:
-    - extension (str): file extension
-
-    Usage:
-        ```python
-        with TmpFilePath('.mp4') as path:
-            # do something with path
-        ```
-    """
-    def __init__(self, extension: str) -> Path:
-        self.extension = extension
-
-    def __call__(self) -> Path:
-        path = settings.paths.tmp_dir / f'{uuid.uuid4()}{self.extension}'
-        try:
-            yield path
-        finally:
-            if path.exists():
-                path.unlink()
 
 
 @contextmanager
