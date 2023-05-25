@@ -1,9 +1,16 @@
+from typing import Callable
 from pathlib import Path
 from contextlib import contextmanager
+import asyncio
 
 import cv2
 
 from common.config import settings
+
+
+def is_async_callable(func: Callable) -> bool:
+    """Check if function is async."""
+    return asyncio.iscoroutinefunction(func) or asyncio.iscoroutine(func)
 
 
 @contextmanager

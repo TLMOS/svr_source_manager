@@ -7,10 +7,10 @@ import cv2
 
 from common import schemas
 from common.config import settings
+from common.utils import open_video_capture, open_video_writer
 from app.security import auth
 from app import crud
 from app.dependencies import DatabaseDepends
-from app.utils import open_video_capture, open_video_writer
 
 
 router = APIRouter(
