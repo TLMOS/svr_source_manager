@@ -174,7 +174,8 @@ def open_source(url: str) -> SourceCapture:
 class VideoWriter:
     def __init__(self, path: Path):
         self.path = path
-        self._is_empty = True
+        self.n_frames: Optional[int] = None
+        self._out: Optional[cv2.VideoWriter] = None
 
     def __enter__(self):
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -184,19 +185,20 @@ class VideoWriter:
             fps=settings.video.chunk_fps,
             frameSize=settings.video.frame_size,
         )
+        self.n_frames = 0
         if self._out is None or not self._out.isOpened():
             raise ValueError('Can not open video writer')
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._out.release()
-        if self._is_empty:
+        if self.n_frames == 0:
             self.path.unlink()
 
     def write(self, frame: np.ndarray):
         """Write frame into video chunk"""
-        self._is_empty = False
         self._out.write(frame)
+        self.n_frames += 1
 
 
 class ChunkWriter(VideoWriter):
@@ -225,12 +227,13 @@ class ChunkWriter(VideoWriter):
     async def __aexit__(self, exc_type, exc_value, traceback):
         end_time = time.time()
         super().__exit__(exc_type, exc_value, traceback)
-        if not self._is_empty and exc_type is None:
+        if exc_type is None and self.n_frames > 0:
             chunk = VideoChunkCreate(
                 source_id=self.source_id,
                 file_path=str(self.path),
                 start_time=self.start_time,
-                end_time=end_time
+                end_time=end_time,
+                n_frames=self.n_frames,
             )
             await core_api.create_video_chunk(chunk)
             if rabbitmq.session.is_opened:

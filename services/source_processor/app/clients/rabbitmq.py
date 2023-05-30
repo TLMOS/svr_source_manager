@@ -77,7 +77,8 @@ def publish_video_chunk(chunk: schemas.VideoChunkCreate):
             headers={
                 'source_id': str(chunk.source_id),
                 'start_time': str(chunk.start_time),
-                'end_time': str(chunk.end_time)
+                'end_time': str(chunk.end_time),
+                'n_frames': str(chunk.n_frames),
             }
         )
     )

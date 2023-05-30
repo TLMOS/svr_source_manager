@@ -37,6 +37,7 @@ class VideoChunkBase(BaseModel):
     file_path: str
     start_time: float
     end_time: float
+    n_frames: int
 
 
 class VideoChunkCreate(VideoChunkBase):
