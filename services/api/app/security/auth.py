@@ -21,7 +21,7 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     """ OAuth2 access token data """
     client_id: str
-    encryption_key: Optional[str] = None
+    encryption_key: str
 
 
 class Client(BaseModel):
@@ -147,10 +147,8 @@ def decode_access_token(token: str) -> Optional[TokenData]:
         client_id: str = payload.get('sub')
         if client_id is None:
             return None
-        token_scopes = payload.get('scopes', [])
         encryption_key = payload.get('encryption_key', None)
         return TokenData(
-            client_scopes=token_scopes,
             client_id=client_id,
             encryption_key=encryption_key,
         )

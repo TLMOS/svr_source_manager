@@ -1,5 +1,11 @@
 import pika
-from pika.exceptions import AMQPConnectionError
+from pika.exceptions import (
+    AMQPConnectionError,
+    StreamLostError,
+    ConnectionClosed,
+    ChannelClosed,
+    ChannelWrongStateError
+)
 from fastapi import HTTPException
 
 from common.config import settings
@@ -40,19 +46,29 @@ class PikaSession:
         self.is_opened = True
 
     def shutdown(self):
-        self._connection.close()
+        try:
+            self._connection.close()
+        except (AttributeError, StreamLostError, ChannelWrongStateError):
+            pass  # Connection is already closed
         self._connection = None
         self._channel = None
         self.is_opened = False
 
     def publish(self, exchange: str, routing_key: str, body: bytes,
                 properties: pika.BasicProperties = None):
-        self._channel.basic_publish(
-            exchange=exchange,
-            routing_key=routing_key,
-            body=body,
-            properties=properties
-        )
+        try:
+            self._channel.basic_publish(
+                exchange=exchange,
+                routing_key=routing_key,
+                body=body,
+                properties=properties
+            )
+        except (ConnectionClosed, ChannelClosed):
+            self.shutdown()
+            raise HTTPException(
+                status_code=400,
+                detail='Failed to publish message to RabbitMQ'
+            )
 
 
 session = PikaSession()

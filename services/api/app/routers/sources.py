@@ -176,6 +176,22 @@ async def start(db: DatabaseDepends, id: int):
 
 
 @router.put(
+    '/start/all',
+    summary='Start all sources'
+)
+async def start_all(db: DatabaseDepends):
+    """
+    Start processing all sources in background.
+    """
+    db_sources = await crud.sources.read_all(db)
+    for db_source in db_sources:
+        if db_source.status_code != SourceStatus.ACTIVE:
+            await crud.sources.update_status(db, db_source.id,
+                                             SourceStatus.ACTIVE)
+            await source_processor.add(db_source)
+
+
+@router.put(
     '/pause',
     summary='Pause source'
 )
@@ -197,6 +213,22 @@ async def pause(db: DatabaseDepends, id: int):
         raise HTTPException(status_code=400, detail='Source not active')
     await source_processor.remove(id)
     await crud.sources.update_status(db, id, SourceStatus.PAUSED)
+
+
+@router.put(
+    '/pause/all',
+    summary='Start all sources'
+)
+async def pause_all(db: DatabaseDepends):
+    """
+    Pause all sources processing.
+    """
+    db_sources = await crud.sources.read_all(db)
+    for db_source in db_sources:
+        if db_source.status_code == SourceStatus.ACTIVE:
+            await crud.sources.update_status(db, db_source.id,
+                                             SourceStatus.PAUSED)
+            await source_processor.remove(db_source.id)
 
 
 @router.put(

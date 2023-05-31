@@ -112,7 +112,8 @@ async def rabbitmq_startup(username: str, password: str):
 )
 async def rabbitmq_shutdown():
     """Stop RabbitMQ session"""
-    rabbitmq.session.shutdown()
+    if rabbitmq.session.is_opened:
+        rabbitmq.session.shutdown()
 
 
 @app.get(

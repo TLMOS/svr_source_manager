@@ -42,9 +42,19 @@ class SourceCapture(ABC):
         pass
 
     @abstractmethod
-    async def read(self) -> np.ndarray:
+    async def _read(self) -> np.ndarray:
         """Read next frame from source"""
         pass
+
+    async def read(self) -> np.ndarray:
+        """Safely read next frame from source"""
+        for attempt in range(settings.video.capture_max_retries):
+            try:
+                frame = await self._read()
+                return frame
+            except Exception:
+                await asyncio.sleep(settings.video.capture_retries_interval)
+        raise ValueError('Can not read next frame')
 
 
 class ImageCapture(SourceCapture):
@@ -60,7 +70,7 @@ class ImageCapture(SourceCapture):
     def has_next(self) -> bool:
         return True
 
-    async def read(self) -> np.ndarray:
+    async def _read(self) -> np.ndarray:
         async with self._session.get(self.url) as response:
             if self.url.startswith('http') and response.status != 200:
                 raise ValueError('Can not read next frame')
@@ -101,7 +111,7 @@ class VideoCapture(SourceCapture):
     def has_next(self) -> bool:
         return self._frames_read < self._frames_total
 
-    async def read(self) -> np.ndarray:
+    async def _read(self) -> np.ndarray:
         ret, frame = self._cap.read()
         self._frames_read += 1
         if self._skip_frames:
@@ -130,15 +140,13 @@ class StreamCapture(SourceCapture):
     def has_next(self) -> bool:
         return True
 
-    async def read(self) -> np.ndarray:
-        # TODO: Rewrite this mess
-        for _ in range(5):
+    async def _read(self) -> np.ndarray:
+        for _ in range(settings.video.capture_max_retries):
             content_length = None
             bytes = b''
-            i = 0
+            line_count = 0
             async with self._session.get(self.url) as resp:
                 async for line in resp.content:
-                    i += 1
                     if content_length is not None:
                         if len(bytes) < content_length:
                             bytes += line
@@ -153,8 +161,10 @@ class StreamCapture(SourceCapture):
                         content_length = int(line.split()[1])
                         if content_length < 100:
                             break
-                    elif i > 100:
+                    elif line_count > 5:
                         break
+                    line_count += 1
+            await asyncio.sleep(settings.video.capture_retries_interval)
         raise ValueError('Can not read next frame')
 
 
@@ -228,6 +238,8 @@ class ChunkWriter(VideoWriter):
         end_time = time.time()
         super().__exit__(exc_type, exc_value, traceback)
         if exc_type is None and self.n_frames > 0:
+            if self.n_frames / (end_time - self.start_time) / settings.video.chunk_fps < 0.9:  # Temporary solution
+                raise ValueError('Too few frames in video chunk')
             chunk = VideoChunkCreate(
                 source_id=self.source_id,
                 file_path=str(self.path),
@@ -294,7 +306,7 @@ class SourceProcessor:
         fps, duration = settings.video.chunk_fps, settings.video.chunk_duration
         number_of_frames = int(fps * duration)
         chunks_count = len(list(save_dir.glob('*.mp4')))
-        status, status_msg = SourceStatus.FINISHED, ''
+        status, status_msg = SourceStatus.FINISHED, 'Reached the end'
         try:
             async with open_source(source.url) as cap:
                 while cap.has_next():

@@ -41,7 +41,7 @@ class VideoSettings(BaseModel):
     chunk_duration: float = 60
     chunk_fps: float = 1
     capture_timeout: int = 1
-    capture_max_retries: int = 5
+    capture_max_retries: int = 3
     capture_retries_interval: float = 0.1
     draw_timestamp: bool = True
 

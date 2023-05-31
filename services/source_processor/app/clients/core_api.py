@@ -46,11 +46,11 @@ async def get_all_active_sources() -> list[Source]:
     Returns:
     - list[Source]: list of active sources
     """
+    url = 'sources/get/all'
     params = {
         'status': SourceStatus.ACTIVE.value
     }
-    async with session.request('sources/get/all', 'GET', params=params
-                               ) as response:
+    async with session.request(url, 'GET', params=params) as response:
         sources = await response.json()
         return [Source(**source) for source in sources]
 
@@ -65,13 +65,13 @@ async def update_source_status(id: int, status: SourceStatus,
     - status (SourceStatus): new source status
     - status_msg (Optional[str]): new source status message
     """
+    url = 'sources/update_status'
     params = {
         'id': id,
         'status': status.value,
         'status_msg': status_msg
     }
-    await session.request_no_response('sources/update_status', 'PUT',
-                                      params=params)
+    await session.request_no_response(url, 'PUT', params=params)
 
 
 async def create_video_chunk(chunk: VideoChunkCreate):
@@ -81,5 +81,5 @@ async def create_video_chunk(chunk: VideoChunkCreate):
     Parameters:
     - chunk (VideoChunkCreate): video chunk
     """
-    await session.request_no_response('videos/chunks/create', 'POST',
-                                      json=chunk.dict())
+    url = 'videos/chunks/create'
+    await session.request_no_response(url, 'POST', json=chunk.dict())

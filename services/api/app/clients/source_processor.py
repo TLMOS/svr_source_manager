@@ -44,8 +44,9 @@ async def add(db_source: models.Source):
     Parameters:
     - db_source (models.Source): source to add
     """
+    url = 'add'
     source = schemas.Source.from_orm(db_source)
-    await session.request_no_response('add', 'POST', json=source.dict())
+    await session.request_no_response(url, 'POST', json=source.dict())
 
 
 async def remove(source_id: int):
@@ -55,11 +56,11 @@ async def remove(source_id: int):
     Parameters:
     - source_id (int): source id
     """
+    url = 'remove'
     params = {
         'source_id': source_id
     }
-    await session.request_no_response('remove', 'DELETE',
-                                      params=params)
+    await session.request_no_response(url, 'DELETE', params=params)
 
 
 async def rabbitmq_startup(username: str, password: str):
@@ -70,20 +71,22 @@ async def rabbitmq_startup(username: str, password: str):
     - username (str): RabbitMQ username
     - password (str): RabbitMQ password
     """
+    url = 'rabbitmq/startup'
     params = {
         'username': username,
         'password': password
     }
-    await session.request_no_response('rabbitmq/startup', 'POST',
-                                      params=params)
+    await session.request_no_response(url, 'POST', params=params)
 
 
 async def rabbitmq_shutdown():
     """Stop RabbitMQ session"""
-    await session.request_no_response('rabbitmq/shutdown', 'POST')
+    url = 'rabbitmq/shutdown'
+    await session.request_no_response(url, 'POST')
 
 
 async def rabbitmq_is_opened() -> bool:
     """Check if RabbitMQ session is opened"""
-    async with session.request('rabbitmq/is_opened', 'GET') as resp:
-        return await resp.json()
+    url = 'rabbitmq/is_opened'
+    async with session.request(url, 'GET') as response:
+        return await response.json()
