@@ -107,8 +107,10 @@ async def get_frame_by_timestamp(db: DatabaseDepends, source_id: int,
     if chunk is None:
         raise HTTPException(status_code=404,
                             detail='No frame saved at this timestamp')
+    duration = chunk.end_time - chunk.start_time
+    frame = chunk.n_frames * (timestamp - chunk.start_time) / duration
     with open_video_capture(chunk.file_path) as cap:
-        cap.set(cv2.CAP_PROP_POS_MSEC, timestamp - chunk.start_time)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, int(frame))
         ret, frame = cap.read()
         if not ret:
             raise HTTPException(status_code=400, detail='Frame capture failed')
