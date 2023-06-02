@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 
-from app.routers.rabbitmq import router as rabbitmq_router
 from app.routers.security import router as security_router
 from app.routers.sources import router as sources_router
 from app.routers.videos import router as videos_router
@@ -20,10 +19,6 @@ tags_metadata = [
     {
         'name': 'Video managment',
         'description': 'Retrieve video data and manage video chunks'
-    },
-    {
-        'name': 'RabbitMQ',
-        'description': 'Start and stop RabbitMQ session'
     }
 ]
 
@@ -59,7 +54,6 @@ async def shutdown():
 
 
 app.include_router(security_router)
-app.include_router(rabbitmq_router)
 app.include_router(sources_router)
 app.include_router(videos_router)
 

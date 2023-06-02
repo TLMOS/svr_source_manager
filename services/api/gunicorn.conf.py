@@ -1,6 +1,6 @@
 proc_name = "svr_sm_api"
 
-workers = 8
+workers = 4
 max_requests = 1000
 timeout = 30
 graceful_timeout = 30

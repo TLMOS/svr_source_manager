@@ -1,11 +1,7 @@
+from typing import Optional
+
 import pika
-from pika.exceptions import (
-    AMQPConnectionError,
-    StreamLostError,
-    ConnectionClosed,
-    ChannelClosed,
-    ChannelWrongStateError
-)
+from pika.exceptions import AMQPConnectionError
 from fastapi import HTTPException
 
 from common.config import settings
@@ -18,13 +14,16 @@ class PikaSession:
 
     Attributes:
     - is_opened (bool): True if the connection is opened
+    - username (str): RabbitMQ username, also used as client ID
     """
 
     is_opened: bool = False
-    _connection: pika.BlockingConnection = None
-    _channel: pika.channel.Channel = None
+    sm_name: Optional[str] = None
+    _connection: Optional[pika.BlockingConnection] = None
+    _channel: Optional[pika.channel.Channel] = None
 
-    def startup(self, username: str, password: str):
+    def startup(self, username: str, password: str, sm_name: str):
+        self.sm_name = sm_name
         try:
             self._connection = pika.BlockingConnection(
                 pika.ConnectionParameters(
@@ -48,7 +47,7 @@ class PikaSession:
     def shutdown(self):
         try:
             self._connection.close()
-        except (AttributeError, StreamLostError, ChannelWrongStateError):
+        except Exception:
             pass  # Connection is already closed
         self._connection = None
         self._channel = None
@@ -63,7 +62,7 @@ class PikaSession:
                 body=body,
                 properties=properties
             )
-        except (ConnectionClosed, ChannelClosed):
+        except Exception:
             self.shutdown()
             raise HTTPException(
                 status_code=400,
@@ -91,6 +90,7 @@ def publish_video_chunk(chunk: schemas.VideoChunkCreate):
         properties=pika.BasicProperties(
             content_type='video/mp4',
             headers={
+                'sm_name': session.sm_name,
                 'source_id': str(chunk.source_id),
                 'start_time': str(chunk.start_time),
                 'end_time': str(chunk.end_time),

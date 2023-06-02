@@ -20,6 +20,7 @@ class RabbitMQSettings(BaseModel):
     port: int = 5672
     vhost: str = '/'
     exchange: str = 'video_chunks'
+    check_interval: int = 60
 
 
 class SecuritySettings(BaseModel):

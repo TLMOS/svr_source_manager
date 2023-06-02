@@ -143,3 +143,31 @@ async def invalidate_client_secret(
     encryption_key = secrets.encrypt(encryption_key, '')
     await crud.secrets.update(db, 'api:client_secret', '')
     await crud.secrets.update(db, 'api:encryption_key', encryption_key)
+
+
+@router.post(
+    '/set_rabbitmq_credentials',
+    summary='Set RabbitMQ credentials'
+)
+async def set_credentials(
+    db: DatabaseDepends,
+    username: str,
+    password: str,
+    sm_name: str,
+    client: auth.Client = Security(auth.get_current_client),
+):
+    """
+    Set RabbitMQ credentials.
+    Credentials are encrypted before saving to the database.
+
+    Parameters:
+    - username (str): RabbitMQ username
+    - password (str): RabbitMQ password
+    - sm_name (str): unique name passed used to identify
+        source manager in the post queue data exchange
+    """
+    username = secrets.encrypt(username, client.encryption_key)
+    password = secrets.encrypt(password, client.encryption_key)
+    await crud.secrets.update(db, 'rabbitmq:username', username, True)
+    await crud.secrets.update(db, 'rabbitmq:password', password, True)
+    await crud.secrets.update(db, 'source_manager:name', sm_name)

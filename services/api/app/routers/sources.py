@@ -185,7 +185,8 @@ async def start_all(db: DatabaseDepends):
     """
     db_sources = await crud.sources.read_all(db)
     for db_source in db_sources:
-        if db_source.status_code != SourceStatus.ACTIVE:
+        if db_source.status_code != SourceStatus.ACTIVE and \
+                db_source.status_code != SourceStatus.FINISHED:
             await crud.sources.update_status(db, db_source.id,
                                              SourceStatus.ACTIVE)
             await source_processor.add(db_source)

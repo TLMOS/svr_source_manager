@@ -1,15 +1,21 @@
 from typing import Optional, Annotated
 from datetime import datetime, timedelta
+import time
 
 from fastapi.security.oauth2 import OAuth2, OAuthFlowsModel
 from fastapi.security import HTTPBasic
 from fastapi.param_functions import Form
 from fastapi import HTTPException, status, Depends, Header
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 from jose import JWTError, jwt
 from pydantic import BaseModel, ValidationError
 
 from common.config import settings
+from app.security import secrets
+from app import crud
+from app.clients import source_processor
+from app.dependencies import DatabaseDepends
 
 
 class Token(BaseModel):
@@ -160,7 +166,36 @@ oauth2_scheme = OAuth2ClientCredentials(tokenUrl='security/token')
 token_scheme = HTTPBasic(auto_error=False)
 
 
+rabbitmq_last_check = time.time()
+
+
+async def ensure_rabbitmq_is_opened(db: AsyncSession, encryption_key: str):
+    """
+    Ensure that RabbitMQ session is opened. Once in defined interval,
+    check if RabbitMQ session is opened, and if not, try to open it.
+
+    Parameters:
+    - encryption_key (str): encryption key, needed to decrypt RabbitMQ
+        credentials, which are stored in the database
+    """
+    global rabbitmq_last_check
+    if time.time() - rabbitmq_last_check < settings.rabbitmq.check_interval:
+        return
+    if await source_processor.rabbitmq_is_opened():
+        return
+
+    sm_name = await crud.secrets.read(db, 'source_manager:name')
+    username = await crud.secrets.read(db, 'rabbitmq:username')
+    password = await crud.secrets.read(db, 'rabbitmq:password')
+    if username and password and sm_name:
+        username = secrets.decrypt(username, encryption_key)
+        password = secrets.decrypt(password, encryption_key)
+        await source_processor.rabbitmq_startup(username, password,
+                                                sm_name)
+
+
 async def requires_auth(
+        db: DatabaseDepends,
         token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
         x_is_local: bool = Header(
             default=False,
@@ -196,9 +231,11 @@ async def requires_auth(
             raise credentials_exception
         if not token_data.client_id:
             raise credentials_exception
+        await ensure_rabbitmq_is_opened(db, token_data.encryption_key)
 
 
 async def get_current_client(
+        db: DatabaseDepends,
         token: Annotated[str, Depends(oauth2_scheme)]
 ) -> Client:
     """
@@ -225,5 +262,6 @@ async def get_current_client(
         raise credentials_exception
     if not token_data.client_id:
         raise credentials_exception
+    await ensure_rabbitmq_is_opened(db, token_data.encryption_key)
     return Client(id=token_data.client_id,
                   encryption_key=token_data.encryption_key)

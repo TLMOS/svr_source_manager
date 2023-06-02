@@ -87,13 +87,16 @@ async def remove(source_id: int):
     '/rabbitmq/startup',
     summary='Start RabbitMQ session'
 )
-async def rabbitmq_startup(username: str, password: str):
+async def rabbitmq_startup(username: str, password: str,
+                           sm_name: str):
     """
     Start RabbitMQ session.
 
     Parameters:
     - username (str): RabbitMQ user
     - password (str): RabbitMQ password
+    - sm_name (str): unique name passed to source
+        manager by search engine with rabbitmq credentials
 
     Raises:
     - HTTPException 400: RabbitMQ session is already opened
@@ -103,7 +106,7 @@ async def rabbitmq_startup(username: str, password: str):
             status_code=400,
             detail='RabbitMQ session is already opened'
         )
-    rabbitmq.session.startup(username, password)
+    rabbitmq.session.startup(username, password, sm_name)
 
 
 @app.post(

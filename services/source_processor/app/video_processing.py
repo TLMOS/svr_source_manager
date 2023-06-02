@@ -238,8 +238,6 @@ class ChunkWriter(VideoWriter):
         end_time = time.time()
         super().__exit__(exc_type, exc_value, traceback)
         if exc_type is None and self.n_frames > 0:
-            if self.n_frames / (end_time - self.start_time) / settings.video.chunk_fps < 0.9:  # Temporary solution
-                raise ValueError('Too few frames in video chunk')
             chunk = VideoChunkCreate(
                 source_id=self.source_id,
                 file_path=str(self.path),

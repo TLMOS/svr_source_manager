@@ -63,7 +63,8 @@ async def remove(source_id: int):
     await session.request_no_response(url, 'DELETE', params=params)
 
 
-async def rabbitmq_startup(username: str, password: str):
+async def rabbitmq_startup(username: str, password: str,
+                           sm_name: str):
     """
     Start RabbitMQ session.
 
@@ -74,7 +75,8 @@ async def rabbitmq_startup(username: str, password: str):
     url = 'rabbitmq/startup'
     params = {
         'username': username,
-        'password': password
+        'password': password,
+        'sm_name': sm_name,
     }
     await session.request_no_response(url, 'POST', params=params)
 
