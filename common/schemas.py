@@ -1,13 +1,22 @@
 """Pydantic schemas for the data server."""
 
 from typing import Optional
-from pydantic import BaseModel
+
+from pydantic import (
+    BaseModel,
+    PositiveInt,
+    PositiveFloat,
+    FilePath,
+    FileUrl,
+    HttpUrl
+)
+
 from common.constants import SourceStatus
 
 
 class SourceBase(BaseModel):
     name: str
-    url: str
+    url: FileUrl | HttpUrl
 
 
 class SourceCreate(SourceBase):
@@ -15,7 +24,7 @@ class SourceCreate(SourceBase):
 
 
 class Source(SourceBase):
-    id: int
+    id: PositiveInt
     status_code: SourceStatus
     status_msg: Optional[str] = None
 
@@ -33,11 +42,11 @@ class Source(SourceBase):
 
 
 class VideoChunkBase(BaseModel):
-    source_id: int
-    file_path: str
-    start_time: float
-    end_time: float
-    farme_count: int
+    source_id: PositiveInt
+    file_path: FilePath
+    start_time: PositiveFloat
+    end_time: PositiveFloat
+    farme_count: PositiveInt
 
 
 class VideoChunkCreate(VideoChunkBase):
@@ -45,7 +54,7 @@ class VideoChunkCreate(VideoChunkBase):
 
 
 class VideoChunk(VideoChunkBase):
-    id: int
+    id: PositiveInt
 
     class Config:
         orm_mode = True

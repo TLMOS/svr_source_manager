@@ -32,7 +32,6 @@ services:
     restart: unless-stopped
     volumes:
       - svr_video_data:/home/video_data
-      - ./common:/home/common
       - ./credentials:/home/credentials
     env_file: ./.env
     depends_on:
@@ -50,7 +49,6 @@ services:
     restart: unless-stopped
     volumes:
       - svr_video_data:/home/video_data
-      - ./common:/home/common
       - ./credentials:/home/credentials
     env_file: ./.env
     depends_on:

@@ -1,5 +1,4 @@
 from pathlib import Path
-import os
 
 from pydantic import (
     BaseModel,
@@ -9,6 +8,8 @@ from pydantic import (
     ValidationError,
     PostgresDsn,
     HttpUrl,
+    PositiveInt,
+    PositiveFloat,
 )
 
 
@@ -19,9 +20,9 @@ class ApiSettings(BaseModel):
 class SourceProcessorSettings(BaseModel):
     url: HttpUrl = 'http://source_processor:8000'
 
-    capture_timeout: int = 1
-    capture_max_retries: int = 3
-    capture_retries_interval: float = 0.1
+    capture_timeout: PositiveFloat = 1
+    capture_max_retries: PositiveInt = 3
+    capture_retries_interval: PositiveFloat = 0.1
 
 
 class SearchEngineSettings(BaseModel):
@@ -40,16 +41,7 @@ class PostgresSettings(BaseModel):
 
 
 class RabbitMQSettings(BaseModel):
-    vhost: str = '/'
-    check_interval: int = 60
-
     video_chunks_exchange: str = 'video_chunks'
-
-
-class SecuritySettings(BaseModel):
-    secret_key: str = os.urandom(32)  # Make sure to redefine it in production
-    jwt_algorithm: str = 'HS256'
-    jwt_access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
 
 
 class PathsSettings(BaseModel):
@@ -65,11 +57,11 @@ class PathsSettings(BaseModel):
 
 
 class VideoSettings(BaseModel):
-    frame_width: int = 640
-    frame_height: int = 480
+    frame_width: int = Field(640, ge=28, le=1920)
+    frame_height: int = Field(480, ge=28, le=1080)
     frame_size: tuple[int, int] = (frame_width, frame_height)
-    chunk_duration: float = 60
-    chunk_fps: float = 1
+    chunk_duration: float = Field(60, gt=1, le=600)
+    chunk_fps: float = Field(1, gt=0, le=60)
     draw_timestamp: bool = True
 
 
@@ -79,7 +71,6 @@ class Settings(BaseSettings):
     search_engine: SearchEngineSettings = SearchEngineSettings()
     postgres: PostgresSettings = PostgresSettings()
     rabbitmq: RabbitMQSettings = RabbitMQSettings()
-    security: SecuritySettings = SecuritySettings()
     paths: PathsSettings = PathsSettings()
     video: VideoSettings = VideoSettings()
 
