@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, Float, Boolean, String, ForeignKey
 from sqlalchemy.orm import relationship
 
 from common.constants import SourceStatus
-from .database import Base
+from common.database import Base
 
 
 class Secret(Base):
@@ -34,7 +34,7 @@ class VideoChunk(Base):
     file_path = Column(String, unique=True, nullable=False)
     start_time = Column(Float, nullable=False)
     end_time = Column(Float, nullable=False)
-    n_frames = Column(Integer, nullable=False)
+    farme_count = Column(Integer, nullable=False)
     source_id = Column(Integer, ForeignKey('source.id'), nullable=False)
 
     source = relationship('Source', back_populates='chunks')

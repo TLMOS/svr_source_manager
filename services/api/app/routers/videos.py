@@ -7,9 +7,9 @@ import cv2
 
 from common import schemas
 from common.config import settings
-from common.utils import open_video_capture, open_video_writer
+from common.utils.videos import open_video_capture, open_video_writer
+from common.database import crud
 from app.security import auth
-from app import crud
 from app.dependencies import DatabaseDepends
 
 
@@ -108,7 +108,7 @@ async def get_frame_by_timestamp(db: DatabaseDepends, source_id: int,
         raise HTTPException(status_code=404,
                             detail='No frame saved at this timestamp')
     duration = chunk.end_time - chunk.start_time
-    frame = chunk.n_frames * (timestamp - chunk.start_time) / duration
+    frame = chunk.farme_count * (timestamp - chunk.start_time) / duration
     with open_video_capture(chunk.file_path) as cap:
         cap.set(cv2.CAP_PROP_POS_FRAMES, int(frame))
         ret, frame = cap.read()

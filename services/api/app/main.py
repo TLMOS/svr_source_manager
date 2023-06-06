@@ -1,17 +1,18 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Security
 from fastapi.responses import RedirectResponse
 
-from app.routers.security import router as security_router
+from common.credentials import (
+    credentials_loader,
+    Credentials,
+    CredentialsCreate
+)
 from app.routers.sources import router as sources_router
 from app.routers.videos import router as videos_router
 from app.clients import source_processor
+from app.security import secrets, auth
 
 
 tags_metadata = [
-    {
-        'name': 'Security',
-        'description': 'Verify Web-UI user credentials, generate tokens.'
-    },
     {
         'name': 'Source management',
         'description': 'Manage video sources.'
@@ -34,7 +35,7 @@ send it to the processing API.
 app = FastAPI(
     title='SVR Source Manager API',
     description=description,
-    version='0.3.1',
+    version='0.4.1',
     license_info={
         'name': 'MIT License',
         'url': 'https://opensource.org/licenses/mit-license.php'
@@ -45,15 +46,14 @@ app = FastAPI(
 
 @app.on_event('startup')
 async def startup():
-    await source_processor.session.startup()
+    source_processor.session.open()
 
 
 @app.on_event('shutdown')
 async def shutdown():
-    await source_processor.session.shutdown()
+    await source_processor.session.close()
 
 
-app.include_router(security_router)
 app.include_router(sources_router)
 app.include_router(videos_router)
 
@@ -62,3 +62,37 @@ app.include_router(videos_router)
 async def root():
     """Root endpoint, redirects to docs"""
     return RedirectResponse(url='/docs')
+
+
+@app.post(
+    '/register',
+    summary='Register source manager in main API (Search Engine)',
+)
+async def register(credentials: CredentialsCreate):
+    """Register source manager in main API (Search Engine)"""
+    if credentials_loader.is_registered():
+        raise HTTPException(
+            status_code=400,
+            detail='Source manager is already registered'
+        )
+    credentials_loader.credentials = Credentials(
+        api_key_hash=secrets.hash(credentials.api_key),
+        **credentials.dict()
+    )
+    await source_processor.restart()
+
+
+@app.post(
+    '/unregister',
+    summary='Unregister source manager in main API (Search Engine)',
+    dependencies=[Security(auth.requires_auth)]
+)
+async def unregister():
+    """Unregister source manager in main API (Search Engine)"""
+    if not credentials_loader.is_registered():
+        raise HTTPException(
+            status_code=400,
+            detail='Source manager is not registered'
+        )
+    credentials_loader.delete()
+    await source_processor.restart()

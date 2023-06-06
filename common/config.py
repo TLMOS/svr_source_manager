@@ -1,26 +1,49 @@
 from pathlib import Path
 import os
 
-from pydantic import BaseModel, BaseSettings
-
-
-basedir = Path(__file__).parent.parent.absolute()
+from pydantic import (
+    BaseModel,
+    BaseSettings,
+    Field,
+    validator,
+    ValidationError,
+    PostgresDsn,
+    HttpUrl,
+)
 
 
 class ApiSettings(BaseModel):
-    url: str = ''
+    url: HttpUrl = 'http://api:8000'
 
 
 class SourceProcessorSettings(BaseModel):
-    url: str = ''
+    url: HttpUrl = 'http://source_processor:8000'
+
+    capture_timeout: int = 1
+    capture_max_retries: int = 3
+    capture_retries_interval: float = 0.1
+
+
+class SearchEngineSettings(BaseModel):
+    url: HttpUrl = 'http://search_engine:8000'
+
+
+class PostgresSettings(BaseModel):
+    dsn: PostgresDsn = ('postgresql+asyncpg://'
+                        'postgres:postgres@postgres:5432/postgres')
+
+    @validator('dsn')
+    def validate_dsn(cls, v: PostgresDsn):
+        if v.scheme == 'postgresql+asyncpg':
+            return v
+        raise ValidationError('Only postgresql+asyncpg scheme is supported')
 
 
 class RabbitMQSettings(BaseModel):
-    host: str = 'rabbitmq'
-    port: int = 5672
     vhost: str = '/'
-    exchange: str = 'video_chunks'
     check_interval: int = 60
+
+    video_chunks_exchange: str = 'video_chunks'
 
 
 class SecuritySettings(BaseModel):
@@ -30,9 +53,15 @@ class SecuritySettings(BaseModel):
 
 
 class PathsSettings(BaseModel):
-    chunks_dir: Path = basedir / 'videos/chunks'
-    sources_dir: Path = basedir / 'videos/sources'
-    tmp_dir: Path = Path('./tmp')
+    chunks_dir: Path = Path('./video_data/chunks')
+    sources_dir: Path = Path('./video_data/sources')
+    credentials: Path = Path('./credentials/credentials.json')
+
+    @validator('*')
+    def validate_path(cls, v: Path, field: Field):
+        if field.name.endswith('_dir'):
+            v.mkdir(parents=True, exist_ok=True)
+        return v.resolve()
 
 
 class VideoSettings(BaseModel):
@@ -41,51 +70,21 @@ class VideoSettings(BaseModel):
     frame_size: tuple[int, int] = (frame_width, frame_height)
     chunk_duration: float = 60
     chunk_fps: float = 1
-    capture_timeout: int = 1
-    capture_max_retries: int = 3
-    capture_retries_interval: float = 0.1
     draw_timestamp: bool = True
 
 
 class Settings(BaseSettings):
     api: ApiSettings = ApiSettings()
     source_processor: SourceProcessorSettings = SourceProcessorSettings()
+    search_engine: SearchEngineSettings = SearchEngineSettings()
+    postgres: PostgresSettings = PostgresSettings()
     rabbitmq: RabbitMQSettings = RabbitMQSettings()
     security: SecuritySettings = SecuritySettings()
     paths: PathsSettings = PathsSettings()
     video: VideoSettings = VideoSettings()
-
-    # Postgres settings, cannot be enveloped in a separate class, because
-    # they are also used by Postgres container
-    pguser: str = 'postgres'
-    postgres_password: str = 'postgres'
-    postgres_db: str = 'postgres'
-    postgres_host: str = 'postgres'
-    postgres_port: int = 5432
-    postgres_url: str = None
 
     class Config:
         env_nested_delimiter = '__'
 
 
 settings = Settings()
-
-
-# Resolve paths
-settings.paths.chunks_dir = settings.paths.chunks_dir.resolve()
-settings.paths.sources_dir = settings.paths.sources_dir.resolve()
-settings.paths.tmp_dir = settings.paths.tmp_dir.resolve()
-settings.paths.chunks_dir.mkdir(parents=True, exist_ok=True)
-settings.paths.sources_dir.mkdir(parents=True, exist_ok=True)
-settings.paths.tmp_dir.mkdir(parents=True, exist_ok=True)
-
-
-# Resolve Postgres URL
-if settings.postgres_url is None:
-    settings.postgres_url = 'postgresql+asyncpg://{}:{}@{}:{}/{}'.format(
-        settings.pguser,
-        settings.postgres_password,
-        settings.postgres_host,
-        settings.postgres_port,
-        settings.postgres_db
-    )

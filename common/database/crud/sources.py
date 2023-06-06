@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common import schemas
 from common.constants import SourceStatus
-from app.models import Source
+from common.database.models import Source
 
 
 async def create(db: AsyncSession,

@@ -1,41 +1,59 @@
-version: "3.9"
+version: '3.9'
+
+networks:
+  source_manager:
+    driver: bridge
+
+volumes:
+  svr_video_data:
+    external: true
+  svr_postgres_data:
+    external: true
 
 services:
-  db:
+  postgres:
     image: postgres:15.2-alpine
-    container_name: svr_sm_db
-    env_file: ./.env
+    container_name: svr-sm-db
+    restart: unless-stopped
+    volumes:
+      - ./services/postgres/init:/docker-entrypoint-initdb.d
+      - svr_postgres_data:/var/lib/postgresql/data
     environment:
-      PGDATA: "/var/lib/postgresql/data/pgdata"
-    volumes:
-      - ./postgresql/init:/docker-entrypoint-initdb.d
-      - ./postgresql/data:/var/lib/postgresql/data
-    restart: unless-stopped
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_PASSWORD: postgres
+    networks:
+      - source_manager
+
   api:
-    build: ./services/api
-    container_name: svr_sm_api
-    env_file: ./.env
+    build:
+      context: .
+      dockerfile: ./services/api/Dockerfile
+    container_name: svr-sm-api
+    restart: unless-stopped
     volumes:
+      - svr_video_data:/home/video_data
       - ./common:/home/common
-      - ./videos:/home/videos
-    restart: unless-stopped
-    depends_on:
-      - db
-  source_processor:
-    build: ./services/source_processor
-    container_name: svr_sm_source_processor
+      - ./credentials:/home/credentials
     env_file: ./.env
-    volumes:
-      - ./common:/home/common
-      - ./videos:/home/videos
-    restart: unless-stopped
     depends_on:
-      - api
-  nginx:
-    build: ./services/nginx
-    container_name: svr_sm_nginx
-    restart: unless-stopped
+      - postgres
     ports:
-      - 8082:8080
+      - 8080:8000
+    networks:
+      - source_manager
+
+  source_processor:
+    build:
+      context: .
+      dockerfile: ./services/source_processor/Dockerfile
+    container_name: svr-sm-source-processor
+    restart: unless-stopped
+    volumes:
+      - svr_video_data:/home/video_data
+      - ./common:/home/common
+      - ./credentials:/home/credentials
+    env_file: ./.env
     depends_on:
-      - api
+      - postgres
+    networks:
+      - source_manager

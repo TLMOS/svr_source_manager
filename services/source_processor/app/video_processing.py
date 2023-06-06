@@ -1,5 +1,7 @@
 """
 Module for capturing frames from source url and writing them into video chunks
+
+TODO: Clean up code, add comments, refactor
 """
 
 import asyncio
@@ -16,7 +18,8 @@ import cv2
 from common.config import settings
 from common.constants import SourceStatus
 from common.schemas import Source, VideoChunkCreate
-from app.clients import core_api, rabbitmq
+from common.database import crud, async_session_factory
+from app.clients import rabbitmq
 
 
 VIDEO_EXTENSIONS = ['mp4', 'avi']
@@ -48,12 +51,12 @@ class SourceCapture(ABC):
 
     async def read(self) -> np.ndarray:
         """Safely read next frame from source"""
-        for attempt in range(settings.video.capture_max_retries):
+        for attempt in range(settings.source_processor.capture_max_retries):
             try:
                 frame = await self._read()
                 return frame
             except Exception:
-                await asyncio.sleep(settings.video.capture_retries_interval)
+                await asyncio.sleep(settings.source_processor.capture_retries_interval)
         raise ValueError('Can not read next frame')
 
 
@@ -141,7 +144,7 @@ class StreamCapture(SourceCapture):
         return True
 
     async def _read(self) -> np.ndarray:
-        for _ in range(settings.video.capture_max_retries):
+        for _ in range(settings.source_processor.capture_max_retries):
             content_length = None
             bytes = b''
             line_count = 0
@@ -164,7 +167,7 @@ class StreamCapture(SourceCapture):
                     elif line_count > 5:
                         break
                     line_count += 1
-            await asyncio.sleep(settings.video.capture_retries_interval)
+            await asyncio.sleep(settings.source_processor.capture_retries_interval)
         raise ValueError('Can not read next frame')
 
 
@@ -184,7 +187,7 @@ def open_source(url: str) -> SourceCapture:
 class VideoWriter:
     def __init__(self, path: Path):
         self.path = path
-        self.n_frames: Optional[int] = None
+        self.farme_count: Optional[int] = None
         self._out: Optional[cv2.VideoWriter] = None
 
     def __enter__(self):
@@ -195,20 +198,20 @@ class VideoWriter:
             fps=settings.video.chunk_fps,
             frameSize=settings.video.frame_size,
         )
-        self.n_frames = 0
+        self.farme_count = 0
         if self._out is None or not self._out.isOpened():
             raise ValueError('Can not open video writer')
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._out.release()
-        if self.n_frames == 0:
+        if self.farme_count == 0:
             self.path.unlink()
 
     def write(self, frame: np.ndarray):
         """Write frame into video chunk"""
         self._out.write(frame)
-        self.n_frames += 1
+        self.farme_count += 1
 
 
 class ChunkWriter(VideoWriter):
@@ -237,17 +240,19 @@ class ChunkWriter(VideoWriter):
     async def __aexit__(self, exc_type, exc_value, traceback):
         end_time = time.time()
         super().__exit__(exc_type, exc_value, traceback)
-        if exc_type is None and self.n_frames > 0:
+        if exc_type is None and self.farme_count > 0:
             chunk = VideoChunkCreate(
                 source_id=self.source_id,
                 file_path=str(self.path),
                 start_time=self.start_time,
                 end_time=end_time,
-                n_frames=self.n_frames,
+                farme_count=self.farme_count,
             )
-            await core_api.create_video_chunk(chunk)
-            if rabbitmq.session.is_opened:
-                rabbitmq.publish_video_chunk(chunk)
+            # Write chunk to database
+            async with async_session_factory() as session:
+                await crud.video_chunks.create(session, chunk)
+            # Publish chunk to rabbitmq
+            rabbitmq.publish_video_chunk(chunk)
 
 
 def add_timestamp(frame: np.ndarray, ts: float) -> np.ndarray:
@@ -333,7 +338,9 @@ class SourceProcessor:
             status_msg = str(e)
         # Source processing either finished or failed, so status should be
         # updated from inside
-        await core_api.update_source_status(source.id, status, status_msg)
+        async with async_session_factory() as session:
+            await crud.sources.update_status(session, source.id,
+                                             status, status_msg)
         self._tasks.pop(source.id)
 
     def add(self, source: Source):
@@ -364,7 +371,9 @@ class SourceProcessor:
 
     async def startup(self):
         """Start processing all active sources."""
-        sources = await core_api.get_all_active_sources()
+        async with async_session_factory() as session:
+            sources = await crud.sources.read_all(session,
+                                                  status=SourceStatus.ACTIVE)
         for source in sources:
             self.add(source)
         self.is_running = True

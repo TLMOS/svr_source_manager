@@ -9,8 +9,8 @@ from fastapi import APIRouter, HTTPException, UploadFile, Security
 from common.constants import SourceStatus
 from common import schemas
 from common.config import settings
+from common.database import crud
 from app.security import auth
-from app import crud
 from app.dependencies import DatabaseDepends
 from app.clients import source_processor
 

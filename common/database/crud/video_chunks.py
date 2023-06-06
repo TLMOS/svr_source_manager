@@ -2,7 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common import schemas
-from app.models import VideoChunk
+from common.database.models import VideoChunk
 
 
 async def create(db: AsyncSession,

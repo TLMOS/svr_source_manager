@@ -2,7 +2,8 @@ from typing import Annotated
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
-from app.database import async_session_factory
+
+from common.database import async_session_factory
 
 
 async def get_database_session() -> AsyncSession:

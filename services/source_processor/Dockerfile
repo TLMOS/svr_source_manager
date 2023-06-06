@@ -8,11 +8,12 @@ RUN apt-get update \
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY ./requirements.txt .
+COPY ./services/source_processor/requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY ./common ./common
+COPY ./services/source_processor .
 
 EXPOSE 8000
 

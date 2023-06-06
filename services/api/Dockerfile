@@ -8,13 +8,17 @@ RUN apt-get update \
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY ./requirements.txt .
+COPY ./services/api/requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY ./common ./common
+COPY ./services/api .
 
 EXPOSE 8000
 
-CMD ["gunicorn", "app.main:app", "--worker-class", \
-     "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
+# CMD ["gunicorn", "app.main:app", "--worker-class", \
+#      "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
+
+CMD ["uvicorn", "app.main:app", "--no-access-log", \
+     "--host", "0.0.0.0", "--port", "8000"]

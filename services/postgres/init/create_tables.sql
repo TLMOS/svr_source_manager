@@ -1,12 +1,3 @@
-CREATE TABLE "secret"
-(
-  id SERIAL PRIMARY KEY,
-  "name" VARCHAR(256) NOT NULL,
-  "value" VARCHAR(512),
-  "encrypted" BOOLEAN NOT NULL DEFAULT FALSE,
-  UNIQUE ("name")
-);
-
 CREATE TABLE source
 (
   id SERIAL PRIMARY KEY,
@@ -22,7 +13,7 @@ CREATE TABLE video_chunk
   file_path TEXT NOT NULL,
   start_time FLOAT NOT NULL,
   end_time FLOAT NOT NULL,
-  n_frames INT NOT NULL,
+  farme_count INT NOT NULL,
   source_id INT NOT NULL,
   FOREIGN KEY (source_id) REFERENCES source(id),
   UNIQUE (file_path)
