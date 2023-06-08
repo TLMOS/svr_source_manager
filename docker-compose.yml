@@ -1,9 +1,5 @@
 version: '3.9'
 
-networks:
-  source_manager:
-    driver: bridge
-
 volumes:
   svr_video_data:
     external: true
@@ -13,7 +9,7 @@ volumes:
 services:
   postgres:
     image: postgres:15.2-alpine
-    container_name: svr-sm-db
+    container_name: svr_sm_db
     restart: unless-stopped
     volumes:
       - ./services/postgres/init:/docker-entrypoint-initdb.d
@@ -21,14 +17,12 @@ services:
     environment:
       PGDATA: /var/lib/postgresql/data/pgdata
       POSTGRES_PASSWORD: postgres
-    networks:
-      - source_manager
 
   api:
     build:
       context: .
       dockerfile: ./services/api/Dockerfile
-    container_name: svr-sm-api
+    container_name: svr_sm_api
     restart: unless-stopped
     volumes:
       - svr_video_data:/home/video_data
@@ -37,15 +31,13 @@ services:
     depends_on:
       - postgres
     ports:
-      - 8080:8000
-    networks:
-      - source_manager
+      - 8080:8080
 
   source_processor:
     build:
-      context: .
+      c	ontext: .
       dockerfile: ./services/source_processor/Dockerfile
-    container_name: svr-sm-source-processor
+    container_name: svr_sm_source_processor
     restart: unless-stopped
     volumes:
       - svr_video_data:/home/video_data
@@ -53,5 +45,4 @@ services:
     env_file: ./.env
     depends_on:
       - postgres
-    networks:
-      - source_manager
+

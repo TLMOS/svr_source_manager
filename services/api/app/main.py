@@ -64,6 +64,15 @@ async def root():
     return RedirectResponse(url='/docs')
 
 
+@app.get(
+    '/is_registered',
+    summary='Check if source manager is registered in main API',
+)
+async def is_registered() -> dict:
+    """Check if source manager is registered in main API"""
+    return {'is_registered': credentials_loader.is_registered()}
+
+
 @app.post(
     '/register',
     summary='Register source manager in main API (Search Engine)',
