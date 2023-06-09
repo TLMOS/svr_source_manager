@@ -196,7 +196,10 @@ class VideoWriter:
             filename=self.path.as_posix(),
             fourcc=fourcc,
             fps=settings.video.chunk_fps,
-            frameSize=settings.video.frame_size,
+            frameSize=(
+                settings.video.frame_width,
+                settings.video.frame_height
+            ),
         )
         self.farme_count = 0
         if self._out is None or not self._out.isOpened():
@@ -307,6 +310,7 @@ class SourceProcessor:
         save_dir = settings.paths.chunks_dir / str(source.id)
         save_dir.mkdir(parents=True, exist_ok=True)
         fps, duration = settings.video.chunk_fps, settings.video.chunk_duration
+        frame_size = (settings.video.frame_width, settings.video.frame_height)
         number_of_frames = int(fps * duration)
         chunks_count = len(list(save_dir.glob('*.mp4')))
         status, status_msg = SourceStatus.FINISHED, 'Reached the end'
@@ -320,7 +324,7 @@ class SourceProcessor:
                                 break
                             read_time = time.time()
                             frame = await cap.read()
-                            frame = cv2.resize(frame, settings.video.frame_size)
+                            frame = cv2.resize(frame, frame_size)
                             if settings.video.draw_timestamp:
                                 frame = add_timestamp(frame, read_time)
                             writer.write(frame)

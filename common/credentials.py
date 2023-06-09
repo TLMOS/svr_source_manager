@@ -16,7 +16,7 @@ class RabbitMQCredentials(BaseModel):
 
 class SearchEngineCredentials(BaseModel):
     client_id: str
-    auth_token: str
+    client_secret: str
 
 
 class CredentialsBase(BaseModel):
@@ -47,12 +47,14 @@ class CredentialsLoader:
         Check if client is registered in the search engine.
         If credentials file exists, client considered registered.
         """
-        if self._credentials:
-            return True
         return settings.paths.credentials.exists()
 
-    def load(self):
-        """Force load data from file"""
+    def delete(self):
+        """Delete credentials file"""
+        settings.paths.credentials.unlink()
+
+    @property
+    def credentials(self) -> Credentials:
         if not settings.paths.credentials.exists():
             raise FileNotFoundError((
                 'Credentials file not found, most likely source manager '
@@ -60,28 +62,12 @@ class CredentialsLoader:
             ))
         with settings.paths.credentials.open('r') as f:
             credentials = json.load(f)
-        self._credentials = Credentials(**credentials)
-
-    def save(self):
-        """Save data to file"""
-        with settings.paths.credentials.open('w') as f:
-            json.dump(self.credentials.dict(), f, indent=4)
-
-    def delete(self):
-        """Delete credentials file"""
-        settings.paths.credentials.unlink()
-        self._credentials = None
-
-    @property
-    def credentials(self) -> Credentials:
-        if self._credentials is None:
-            self.load()
-        return self._credentials
+        return Credentials(**credentials)
 
     @credentials.setter
     def credentials(self, data: Credentials):
-        self._credentials = data
-        self.save()
+        with settings.paths.credentials.open('w') as f:
+            json.dump(data.dict(), f, indent=4)
 
 
 credentials_loader = CredentialsLoader()

@@ -88,7 +88,14 @@ async def register(credentials: CredentialsCreate):
         api_key_hash=secrets.hash(credentials.api_key),
         **credentials.dict()
     )
-    await source_processor.restart()
+    try:
+        await source_processor.restart()
+    except Exception as e:
+        credentials_loader.delete()
+        raise HTTPException(
+            status_code=500,
+            detail='Failed to register source manager'
+        ) from e
 
 
 @app.post(

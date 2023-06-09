@@ -2,21 +2,14 @@
 
 from typing import Optional
 
-from pydantic import (
-    BaseModel,
-    PositiveInt,
-    PositiveFloat,
-    FilePath,
-    FileUrl,
-    HttpUrl
-)
+from pydantic import BaseModel
 
 from common.constants import SourceStatus
 
 
 class SourceBase(BaseModel):
     name: str
-    url: FileUrl | HttpUrl
+    url: str
 
 
 class SourceCreate(SourceBase):
@@ -24,7 +17,7 @@ class SourceCreate(SourceBase):
 
 
 class Source(SourceBase):
-    id: PositiveInt
+    id: int
     status_code: SourceStatus
     status_msg: Optional[str] = None
 
@@ -42,11 +35,11 @@ class Source(SourceBase):
 
 
 class VideoChunkBase(BaseModel):
-    source_id: PositiveInt
-    file_path: FilePath
-    start_time: PositiveFloat
-    end_time: PositiveFloat
-    farme_count: PositiveInt
+    source_id: int
+    file_path: str
+    start_time: float
+    end_time: float
+    farme_count: int
 
 
 class VideoChunkCreate(VideoChunkBase):
@@ -54,7 +47,7 @@ class VideoChunkCreate(VideoChunkBase):
 
 
 class VideoChunk(VideoChunkBase):
-    id: PositiveInt
+    id: int
 
     class Config:
         orm_mode = True

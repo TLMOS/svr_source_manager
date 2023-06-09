@@ -2,11 +2,27 @@ version: '3.9'
 
 volumes:
   svr_video_data:
-    external: true
+    external: false
   svr_postgres_data:
-    external: true
+    external: false
 
 services:
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: svr_sm_node_exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - 9100:9100
+
   postgres:
     image: postgres:15.2-alpine
     container_name: svr_sm_db
@@ -35,7 +51,7 @@ services:
 
   source_processor:
     build:
-      c	ontext: .
+      context: .
       dockerfile: ./services/source_processor/Dockerfile
     container_name: svr_sm_source_processor
     restart: unless-stopped
@@ -45,4 +61,5 @@ services:
     env_file: ./.env
     depends_on:
       - postgres
+
 

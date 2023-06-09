@@ -55,8 +55,11 @@ def open_video_writer(path: str | Path) -> cv2.VideoWriter:
         out = cv2.VideoWriter(
             filename=path.as_posix(),
             fourcc=fourcc,
-            fps=settings.chunk_fps,
-            frameSize=settings.frame_size,
+            fps=settings.video.chunk_fps,
+            frameSize=(
+                settings.video.frame_width,
+                settings.video.frame_height
+            ),
         )
         yield out
     finally:

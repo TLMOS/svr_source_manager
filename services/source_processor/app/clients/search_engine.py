@@ -1,3 +1,5 @@
+from base64 import b64encode
+
 from fastapi import HTTPException
 
 from common.config import settings
@@ -13,7 +15,11 @@ session = ClientSession(settings.search_engine.url)
 def middleware(call, url, **kwargs):
     if 'headers' not in kwargs:
         kwargs['headers'] = {}
-    auth_token = credentials_loader.credentials.search_engine.auth_token
+    auth_token = '{}:{}'.format(
+        credentials_loader.credentials.search_engine.client_id,
+        credentials_loader.credentials.search_engine.client_secret
+    )
+    auth_token = b64encode(auth_token.encode()).decode()
     kwargs['headers']['Authorization'] = f'Bearer {auth_token}'
     response = call(url, **kwargs)
     if response.status_code >= 400:
@@ -24,6 +30,6 @@ def middleware(call, url, **kwargs):
 
 
 def get_rabbitmq_credentials() -> RabbitMQCredentials:
-    url = 'rabbitmq/credentials'
+    url = 'api/rabbitmq/credentials'
     response = session.request('GET', url)
     return RabbitMQCredentials(**response.json())

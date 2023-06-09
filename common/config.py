@@ -14,11 +14,11 @@ from pydantic import (
 
 
 class ApiSettings(BaseModel):
-    url: HttpUrl = 'http://api:8000'
+    url: HttpUrl = 'http://api:8080'
 
 
 class SourceProcessorSettings(BaseModel):
-    url: HttpUrl = 'http://source_processor:8000'
+    url: HttpUrl = 'http://source_processor:8080'
 
     capture_timeout: PositiveFloat = 1
     capture_max_retries: PositiveInt = 3
@@ -26,15 +26,15 @@ class SourceProcessorSettings(BaseModel):
 
 
 class SearchEngineSettings(BaseModel):
-    url: HttpUrl = 'http://search_engine:8000'
+    url: HttpUrl = 'http://search_engine:8080'
 
 
 class PostgresSettings(BaseModel):
-    dsn: PostgresDsn = ('postgresql+asyncpg://'
+    url: PostgresDsn = ('postgresql+asyncpg://'
                         'postgres:postgres@postgres:5432/postgres')
 
-    @validator('dsn')
-    def validate_dsn(cls, v: PostgresDsn):
+    @validator('url')
+    def validate_url(cls, v: PostgresDsn):
         if v.scheme == 'postgresql+asyncpg':
             return v
         raise ValidationError('Only postgresql+asyncpg scheme is supported')
@@ -59,7 +59,6 @@ class PathsSettings(BaseModel):
 class VideoSettings(BaseModel):
     frame_width: int = Field(640, ge=28, le=1920)
     frame_height: int = Field(480, ge=28, le=1080)
-    frame_size: tuple[int, int] = (frame_width, frame_height)
     chunk_duration: float = Field(60, gt=1, le=600)
     chunk_fps: float = Field(1, gt=0, le=60)
     draw_timestamp: bool = True

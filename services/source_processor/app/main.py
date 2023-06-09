@@ -37,7 +37,8 @@ source_processor = SourceProcessor()
 async def on_startup():
     if credentials_loader.is_registered():
         rmq_credentials = search_engine.get_rabbitmq_credentials()
-        rabbitmq.session.open(**rmq_credentials.dict())
+        rabbitmq.session.set_connection_params(**rmq_credentials.dict())
+        rabbitmq.session.open()
         await source_processor.startup()
 
 
