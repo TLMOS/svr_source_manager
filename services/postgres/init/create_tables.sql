@@ -13,7 +13,7 @@ CREATE TABLE video_chunk
   file_path TEXT NOT NULL,
   start_time FLOAT NOT NULL,
   end_time FLOAT NOT NULL,
-  farme_count INT NOT NULL,
+  frame_count INT NOT NULL,
   source_id INT NOT NULL,
   FOREIGN KEY (source_id) REFERENCES source(id),
   UNIQUE (file_path)

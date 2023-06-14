@@ -49,12 +49,6 @@ class PathsSettings(BaseModel):
     sources_dir: Path = Path('./video_data/sources')
     credentials: Path = Path('./credentials/credentials.json')
 
-    @validator('*')
-    def validate_path(cls, v: Path, field: Field):
-        if field.name.endswith('_dir'):
-            v.mkdir(parents=True, exist_ok=True)
-        return v.resolve()
-
 
 class VideoSettings(BaseModel):
     frame_width: int = Field(640, ge=28, le=1920)
@@ -78,3 +72,11 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+settings.paths.chunks_dir.mkdir(parents=True, exist_ok=True)
+settings.paths.sources_dir.mkdir(parents=True, exist_ok=True)
+settings.paths.credentials.parent.mkdir(parents=True, exist_ok=True)
+
+settings.paths.chunks_dir = settings.paths.chunks_dir.resolve()
+settings.paths.sources_dir = settings.paths.sources_dir.resolve()
+settings.paths.credentials = settings.paths.credentials.resolve()

@@ -179,14 +179,19 @@ async def start(db: DatabaseDepends, id: int):
     '/start/all',
     summary='Start all sources'
 )
-async def start_all(db: DatabaseDepends):
+async def start_all(db: DatabaseDepends, start_finished: bool = False):
     """
     Start processing all sources in background.
+
+    Parameters:
+    - start_finished (bool): if True, start sources with status FINISHED
     """
     db_sources = await crud.sources.read_all(db)
     for db_source in db_sources:
-        if db_source.status_code != SourceStatus.ACTIVE and \
-                db_source.status_code != SourceStatus.FINISHED:
+        if db_source.status_code != SourceStatus.ACTIVE:
+            if not start_finished\
+                    and db_source.status_code == SourceStatus.FINISHED:
+                continue
             await crud.sources.update_status(db, db_source.id,
                                              SourceStatus.ACTIVE)
             await source_processor.add(db_source)

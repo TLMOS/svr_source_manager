@@ -187,7 +187,7 @@ def open_source(url: str) -> SourceCapture:
 class VideoWriter:
     def __init__(self, path: Path):
         self.path = path
-        self.farme_count: Optional[int] = None
+        self.frame_count: Optional[int] = None
         self._out: Optional[cv2.VideoWriter] = None
 
     def __enter__(self):
@@ -201,20 +201,20 @@ class VideoWriter:
                 settings.video.frame_height
             ),
         )
-        self.farme_count = 0
+        self.frame_count = 0
         if self._out is None or not self._out.isOpened():
             raise ValueError('Can not open video writer')
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._out.release()
-        if self.farme_count == 0:
+        if self.frame_count == 0:
             self.path.unlink()
 
     def write(self, frame: np.ndarray):
         """Write frame into video chunk"""
         self._out.write(frame)
-        self.farme_count += 1
+        self.frame_count += 1
 
 
 class ChunkWriter(VideoWriter):
@@ -243,19 +243,19 @@ class ChunkWriter(VideoWriter):
     async def __aexit__(self, exc_type, exc_value, traceback):
         end_time = time.time()
         super().__exit__(exc_type, exc_value, traceback)
-        if exc_type is None and self.farme_count > 0:
-            chunk = VideoChunkCreate(
+        if exc_type is None and self.frame_count > 0:
+            db_chunk = VideoChunkCreate(
                 source_id=self.source_id,
                 file_path=str(self.path),
                 start_time=self.start_time,
                 end_time=end_time,
-                farme_count=self.farme_count,
+                frame_count=self.frame_count,
             )
             # Write chunk to database
             async with async_session_factory() as session:
-                await crud.video_chunks.create(session, chunk)
+                db_chunk = await crud.video_chunks.create(session, db_chunk)
             # Publish chunk to rabbitmq
-            rabbitmq.publish_video_chunk(chunk)
+            rabbitmq.publish_video_chunk(db_chunk)
 
 
 def add_timestamp(frame: np.ndarray, ts: float) -> np.ndarray:

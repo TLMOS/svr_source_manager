@@ -34,7 +34,7 @@ class VideoChunk(Base):
     file_path = Column(String, unique=True, nullable=False)
     start_time = Column(Float, nullable=False)
     end_time = Column(Float, nullable=False)
-    farme_count = Column(Integer, nullable=False)
+    frame_count = Column(Integer, nullable=False)
     source_id = Column(Integer, ForeignKey('source.id'), nullable=False)
 
     source = relationship('Source', back_populates='chunks')

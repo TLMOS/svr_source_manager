@@ -47,6 +47,33 @@ async def create_chunk(db: DatabaseDepends,
 
 
 @router.get(
+    '/get/frame/{chunk_id}/{frame_id}',
+    summary='Get frame by id',
+    response_description='Frame',
+    response_class=Response
+)
+async def get_frame_by_id(db: DatabaseDepends, chunk_id: int, frame_id: int):
+    """
+    Get frame by id.
+
+    Parameters:
+    - chunk_id (int): video chunk id
+    - frame_id (int): frame id (number of frame in video chunk)
+    """
+    db_chunk = await crud.video_chunks.read(db, chunk_id)
+    if db_chunk is None:
+        raise HTTPException(status_code=404, detail='Video chunk not found')
+    with open_video_capture(db_chunk.file_path) as cap:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
+        ret, frame = cap.read()
+        if not ret:
+            raise HTTPException(status_code=400, detail='Frame capture failed')
+        _, buffer = cv2.imencode('.jpg', frame)
+        return Response(content=buffer.tobytes(),
+                        media_type='image/jpeg')
+
+
+@router.get(
     '/get/frame/last',
     summary='Get last saved frame from source',
     response_description='Frame',
@@ -108,7 +135,7 @@ async def get_frame_by_timestamp(db: DatabaseDepends, source_id: int,
         raise HTTPException(status_code=404,
                             detail='No frame saved at this timestamp')
     duration = chunk.end_time - chunk.start_time
-    frame = chunk.farme_count * (timestamp - chunk.start_time) / duration
+    frame = chunk.frame_count * (timestamp - chunk.start_time) / duration
     with open_video_capture(chunk.file_path) as cap:
         cap.set(cv2.CAP_PROP_POS_FRAMES, int(frame))
         ret, frame = cap.read()

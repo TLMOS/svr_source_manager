@@ -39,7 +39,7 @@ class VideoChunkBase(BaseModel):
     file_path: str
     start_time: float
     end_time: float
-    farme_count: int
+    frame_count: int
 
 
 class VideoChunkCreate(VideoChunkBase):

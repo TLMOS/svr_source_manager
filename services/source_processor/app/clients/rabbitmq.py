@@ -9,7 +9,7 @@ from common import schemas
 session = Session()
 
 
-def publish_video_chunk(chunk: schemas.VideoChunkCreate):
+def publish_video_chunk(chunk: schemas.VideoChunk):
     """
     Publish video chunk to RabbitMQ processing queue.
 
@@ -31,9 +31,10 @@ def publish_video_chunk(chunk: schemas.VideoChunkCreate):
             headers={
                 'source_manager_id': source_manager_id,
                 'source_id': str(chunk.source_id),
+                'chunk_id': str(chunk.id),
+                'frame_count': str(chunk.frame_count),
                 'start_time': str(chunk.start_time),
                 'end_time': str(chunk.end_time),
-                'farme_count': str(chunk.farme_count),
             }
         )
     )
