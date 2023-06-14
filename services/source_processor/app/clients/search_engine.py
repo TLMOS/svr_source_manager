@@ -30,6 +30,6 @@ def middleware(call, url, **kwargs):
 
 
 def get_rabbitmq_credentials() -> RabbitMQCredentials:
-    url = 'api/rabbitmq/credentials'
+    url = 'api/rabbitmq_credentials'
     response = session.request('GET', url)
     return RabbitMQCredentials(**response.json())

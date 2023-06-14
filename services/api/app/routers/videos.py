@@ -68,9 +68,9 @@ async def get_frame_by_id(db: DatabaseDepends, chunk_id: int, frame_id: int):
         ret, frame = cap.read()
         if not ret:
             raise HTTPException(status_code=400, detail='Frame capture failed')
-        _, buffer = cv2.imencode('.jpg', frame)
+        _, buffer = cv2.imencode('.png', frame)
         return Response(content=buffer.tobytes(),
-                        media_type='image/jpeg')
+                        media_type='image/png')
 
 
 @router.get(
@@ -101,9 +101,9 @@ async def get_last_frame(db: DatabaseDepends, source_id: int):
         if not ret:
             raise HTTPException(status_code=400,
                                 detail='Frame capture failed')
-        _, buffer = cv2.imencode('.jpg', frame)
+        _, buffer = cv2.imencode('.png', frame)
         return Response(content=buffer.tobytes(),
-                        media_type='image/jpeg')
+                        media_type='image/png')
 
 
 @router.get(
@@ -141,8 +141,8 @@ async def get_frame_by_timestamp(db: DatabaseDepends, source_id: int,
         ret, frame = cap.read()
         if not ret:
             raise HTTPException(status_code=400, detail='Frame capture failed')
-        _, buffer = cv2.imencode('.jpg', frame)
-        return Response(content=buffer.tobytes(), media_type='image/jpeg')
+        _, buffer = cv2.imencode('.png', frame)
+        return Response(content=buffer.tobytes(), media_type='image/png')
 
 
 @router.get(

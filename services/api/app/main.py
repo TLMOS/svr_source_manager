@@ -94,7 +94,7 @@ async def register(credentials: CredentialsCreate):
         credentials_loader.delete()
         raise HTTPException(
             status_code=500,
-            detail='Failed to register source manager'
+            detail=f'Failed to register source manager: {e}'
         ) from e
 
 
