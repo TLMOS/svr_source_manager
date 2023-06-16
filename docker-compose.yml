@@ -30,8 +30,6 @@ services:
     env_file: ./.env
     depends_on:
       - postgres
-    ports:
-      - 8080:8080
 
   source_processor:
     build:
@@ -45,5 +43,14 @@ services:
     env_file: ./.env
     depends_on:
       - postgres
+
+  nginx:
+    build: ./services/nginx
+    container_name: svr_sm_nginx
+    restart: unless-stopped
+    ports:
+      - 8080:8080
+    depends_on:
+      - api
 
 

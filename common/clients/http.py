@@ -18,6 +18,10 @@ class ClientSession:
     """
     Requests wrapper with middleware support.
 
+    Attributes:
+    - base_url (str): base url for requests
+    - state (dict): state dictionary to store data between requests
+
     Usage:
     ```python
     session = ClientSession('http://example.com')
@@ -39,6 +43,7 @@ class ClientSession:
 
     def __init__(self, base_url: str):
         self.base_url = base_url
+        self.state = {}
         self._middleware: Optional[Callable] = None
 
     def middleware(self, func: Callable):
@@ -64,6 +69,10 @@ class AsyncClientSession:
     """
     Requests wrapper with middleware support.
 
+    Attributes:
+    - base_url (str): base url for requests
+    - state (dict): state dictionary to store data between requests
+
     Usage:
     ```python
     session = ClientSession('http://example.com')
@@ -88,6 +97,8 @@ class AsyncClientSession:
 
     def __init__(self, base_url: str):
         self.base_url = base_url
+        self.state = {}
+        self._session: Optional[aiohttp.ClientSession] = None
         self._middleware: Optional[Callable] = None
 
     def open(self):

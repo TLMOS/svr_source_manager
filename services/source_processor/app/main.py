@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 
-from common.schemas import Source
+from common.schemas import Source, VideoChunk
 from common.credentials import credentials_loader
 from app.clients import rabbitmq, search_engine
 from app.video_processing import SourceProcessor
@@ -39,13 +39,12 @@ async def on_startup():
         rmq_credentials = search_engine.get_rabbitmq_credentials()
         rabbitmq.session.set_connection_params(**rmq_credentials.dict())
         rabbitmq.session.open()
-        await source_processor.startup()
+        source_processor.startup()
 
 
 @app.on_event('shutdown')
 async def on_shutdown():
-    if source_processor.is_running:
-        await source_processor.shutdown()
+    source_processor.shutdown()
     if rabbitmq.session.is_opened:
         rabbitmq.session.close()
 
@@ -91,4 +90,18 @@ async def remove(source_id: int):
     Parameters:
     - id (int): source id
     """
-    await source_processor.remove(source_id)
+    source_processor.remove(source_id)
+
+
+@app.post(
+    '/publish',
+    summary='Publish video chunk to RabbitMQ queue'
+)
+async def publish(chunk: VideoChunk):
+    """
+    Publish video chunk to RabbitMQ processing queue.
+
+    Args:
+    - chunk (models.VideoChunk): video chunk to publish
+    """
+    rabbitmq.publish_video_chunk(chunk)

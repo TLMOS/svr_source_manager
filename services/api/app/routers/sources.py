@@ -218,7 +218,6 @@ async def pause(db: DatabaseDepends, id: int):
     if db_source.status_code != SourceStatus.ACTIVE:
         raise HTTPException(status_code=400, detail='Source not active')
     await source_processor.remove(id)
-    await crud.sources.update_status(db, id, SourceStatus.PAUSED)
 
 
 @router.put(

@@ -55,7 +55,6 @@ class VideoSettings(BaseModel):
     frame_height: int = Field(480, ge=28, le=1080)
     chunk_duration: float = Field(60, gt=1, le=600)
     chunk_fps: float = Field(1, gt=0, le=60)
-    draw_timestamp: bool = False
 
 
 class Settings(BaseSettings):

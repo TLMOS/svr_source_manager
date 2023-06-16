@@ -4,25 +4,25 @@ Module for capturing frames from source url and writing them into video chunks
 TODO: Clean up code, add comments, refactor
 """
 
-import asyncio
-import aiohttp
+from threading import Thread, Event
 from abc import ABC, abstractmethod
 from pathlib import Path
 import time
-from datetime import datetime
 from typing import Optional
 
+import requests
+import urllib.request
 import numpy as np
 import cv2
 
 from common.config import settings
 from common.constants import SourceStatus
 from common.schemas import Source, VideoChunkCreate
-from common.database import crud, async_session_factory
-from app.clients import rabbitmq
+from common.clients.http import concat_url
+from app.clients import api
 
 
-VIDEO_EXTENSIONS = ['mp4', 'avi']
+VIDEO_EXTENSIONS = ['mp4', 'avi', 'mov', 'mkv', 'webm']
 STREAM_EXTENSIONS = ['mjpg']
 IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg']
 
@@ -33,10 +33,10 @@ class SourceCapture(ABC):
     def __init__(self, url: str):
         self.url = url
 
-    async def __aenter__(self):
+    def __enter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback):
         pass
 
     @abstractmethod
@@ -45,44 +45,36 @@ class SourceCapture(ABC):
         pass
 
     @abstractmethod
-    async def _read(self) -> np.ndarray:
+    def _read(self) -> np.ndarray:
         """Read next frame from source"""
         pass
 
-    async def read(self) -> np.ndarray:
+    def read(self) -> np.ndarray:
         """Safely read next frame from source"""
         for attempt in range(settings.source_processor.capture_max_retries):
             try:
-                frame = await self._read()
+                frame = self._read()
                 return frame
             except Exception:
-                await asyncio.sleep(settings.source_processor.capture_retries_interval)
+                time.sleep(settings.source_processor.capture_retries_interval)
         raise ValueError('Can not read next frame')
 
 
 class ImageCapture(SourceCapture):
     """Context manager for capturing frames from image url"""
 
-    async def __aenter__(self):
-        self._session = aiohttp.ClientSession()
-        return self
-
-    async def __aexit__(self, exc_type, exc_value, traceback):
-        await self._session.close()
-
     def has_next(self) -> bool:
         return True
 
-    async def _read(self) -> np.ndarray:
-        async with self._session.get(self.url) as response:
-            if self.url.startswith('http') and response.status != 200:
-                raise ValueError('Can not read next frame')
-            content = await response.read()
-            frame = cv2.imdecode(
-                np.frombuffer(content, dtype=np.uint8),
-                cv2.IMREAD_COLOR
-            )
-            return frame
+    def _read(self) -> np.ndarray:
+        response = requests.get(self.url)
+        if self.url.startswith('http') and response.status != 200:
+            raise ValueError('Can not read next frame')
+        frame = cv2.imdecode(
+            np.frombuffer(response.content, dtype=np.uint8),
+            cv2.IMREAD_COLOR
+        )
+        return frame
 
 
 class VideoCapture(SourceCapture):
@@ -97,33 +89,32 @@ class VideoCapture(SourceCapture):
     _fps: Optional[float] = None
     _skip_frames: Optional[int] = None
 
-    async def __aenter__(self):
+    def __enter__(self):
         self._cap = cv2.VideoCapture(self.url)
         if self._cap.isOpened():
             self._frames_read = 0
             self._frames_total = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
             self._fps = self._cap.get(cv2.CAP_PROP_FPS)
-            self._skip_frames = max(0, int(self._fps / settings.video.chunk_fps) - 1)
+            self._skip_frames = int(self._fps / settings.video.chunk_fps) - 1
+            self._skip_frames = max(0, self._skip_frames)
             return self
         else:
             raise ValueError('Can not open video capture')
 
-    async def __aexit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback):
         self._cap.release()
 
     def has_next(self) -> bool:
         return self._frames_read < self._frames_total
 
-    async def _read(self) -> np.ndarray:
+    def _read(self) -> np.ndarray:
         ret, frame = self._cap.read()
-        self._frames_read += 1
-        if self._skip_frames:
-            self._frames_read += self._skip_frames
-            self._cap.set(cv2.CAP_PROP_POS_FRAMES, self._frames_read - 1)
+        self._frames_read += 1 + self._skip_frames
+        for i in range(self._skip_frames):
+            self._cap.read()
         if ret:
             return frame
-        else:
-            raise ValueError('Can not read next frame')
+        raise ValueError('Can not read next frame')
 
 
 class StreamCapture(SourceCapture):
@@ -133,42 +124,29 @@ class StreamCapture(SourceCapture):
 
     _frame_byte_size: int = 1024
 
-    async def __aenter__(self):
-        self._session = aiohttp.ClientSession()
-        return self
-
-    async def __aexit__(self, exc_type, exc_value, traceback):
-        await self._session.close()
-
     def has_next(self) -> bool:
         return True
 
-    async def _read(self) -> np.ndarray:
-        for _ in range(settings.source_processor.capture_max_retries):
-            content_length = None
-            bytes = b''
-            line_count = 0
-            async with self._session.get(self.url) as resp:
-                async for line in resp.content:
-                    if content_length is not None:
-                        if len(bytes) < content_length:
-                            bytes += line
-                        else:
-                            jpg = bytes[2:-2]
-                            frame = cv2.imdecode(
-                                np.frombuffer(jpg, dtype=np.uint8),
-                                cv2.IMREAD_COLOR
-                            )
-                            return frame
-                    elif b'Content-Length' in line:
-                        content_length = int(line.split()[1])
-                        if content_length < 100:
-                            break
-                    elif line_count > 5:
-                        break
-                    line_count += 1
-            await asyncio.sleep(settings.source_processor.capture_retries_interval)
-        raise ValueError('Can not read next frame')
+    def _read(self) -> np.ndarray:
+        timeout = settings.source_processor.capture_timeout
+        stream = urllib.request.urlopen(self.url, timeout=timeout)
+        lines = stream.read(1024).split(b'\r\n')
+        content_length = None
+        for line in lines:
+            if b'Content-Length' in line:
+                content_length = int(line.split()[1])
+                break
+        if content_length is None:
+            raise ValueError('Can not read next frame')
+        bytes = lines[-1]
+        bytes += stream.read(content_length - len(bytes))
+        frame = cv2.imdecode(
+            np.frombuffer(bytes, dtype=np.uint8),
+            cv2.IMREAD_COLOR
+        )
+        if frame is None:
+            raise ValueError('Can not read next frame')
+        return frame
 
 
 def open_source(url: str) -> SourceCapture:
@@ -230,17 +208,11 @@ class ChunkWriter(VideoWriter):
         self.start_time = None
 
     def __enter__(self):
-        raise NotImplementedError
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        raise NotImplementedError
-
-    async def __aenter__(self):
         super().__enter__()
         self.start_time = time.time()
         return self
 
-    async def __aexit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback):
         end_time = time.time()
         super().__exit__(exc_type, exc_value, traceback)
         if exc_type is None and self.frame_count > 0:
@@ -252,100 +224,81 @@ class ChunkWriter(VideoWriter):
                 frame_count=self.frame_count,
             )
             # Write chunk to database
-            async with async_session_factory() as session:
-                db_chunk = await crud.video_chunks.create(session, db_chunk)
+            db_chunk = api.create_video_chunk(db_chunk)
             # Publish chunk to rabbitmq
-            rabbitmq.publish_video_chunk(db_chunk)
+            url = concat_url(settings.source_processor.url, '/publish')
+            requests.post(url, json=db_chunk.dict())
 
 
-def add_timestamp(frame: np.ndarray, ts: float) -> np.ndarray:
+def task_process_source(source: Source, stop_event: Event,
+                        shutdown_event: Event):
     """
-    Add timestamp to frame.
+    Get frames from the given source and write them into video chunks.
+    Create video files and database records.
+    Suppoused to be run as a background task in a separate thread.
 
     Parameters:
-    - frame (np.ndarray): frame to add timestamp to
-    - ts (float): timestamp in seconds
-
-    Returns:
-    - frame (np.ndarray): frame with timestamp
+    - source (schemas.Source) - source to process
+    - stop_event (threading.Event) - event to stop processing
+    - shutdown_event (threading.Event) - event which is set when source
+        processor is shutting down, no source status updates are needed
+        in this case
     """
-
-    text = datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 1
-    thickness = 2
-    color = (255, 255, 255)
-    text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
-    text_x = frame.shape[1] - text_size[0] - 10
-    text_y = frame.shape[0] - text_size[1] - 10
-    cv2.putText(
-        frame,
-        text,
-        (text_x, text_y),
-        font,
-        font_scale,
-        color,
-        thickness,
-        cv2.LINE_AA
-    )
-    return frame
+    save_dir = settings.paths.chunks_dir / str(source.id)
+    save_dir.mkdir(parents=True, exist_ok=True)
+    fps, duration = settings.video.chunk_fps, settings.video.chunk_duration
+    frame_size = (settings.video.frame_width, settings.video.frame_height)
+    number_of_frames = int(fps * duration)
+    chunks_count = len(list(save_dir.glob('*.mp4')))
+    status, status_msg = SourceStatus.FINISHED, 'Reached the end'
+    try:
+        with open_source(source.url) as cap:
+            while cap.has_next():
+                chunk_path = save_dir / f'{chunks_count}.mp4'
+                with ChunkWriter(source.id, chunk_path) as writer:
+                    for _ in range(number_of_frames):
+                        if not cap.has_next() or stop_event.is_set():
+                            break
+                        start_time = time.perf_counter()
+                        end_time = start_time + 1 / fps
+                        frame = cap.read()
+                        frame = cv2.resize(frame, frame_size)
+                        writer.write(frame)
+                        delay = end_time - time.perf_counter()
+                        if delay > 0:
+                            time.sleep(delay)
+                        else:
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            logger.warning('Frame processing took too long')
+                    chunks_count += 1
+                if stop_event.is_set():
+                    status, status_msg = SourceStatus.PAUSED, 'Stopped by user'
+                    break
+    except Exception as e:
+        status = SourceStatus.ERROR
+        status_msg = str(e)
+    # Source processing either finished or failed, so status should be
+    # updated from inside
+    if not shutdown_event.is_set():
+        api.update_source_status(source.id, status, status_msg)
 
 
 class SourceProcessor:
     """Manages background tasks for processing sources."""
 
     def __init__(self):
-        self._tasks = {}
-        self.is_running = False
+        self._threads = {}
+        self._stop_events = {}
+        self._shutdown_event = Event()
 
-    async def _process(self, source: Source):
-        """
-        Get frames from the given source and write them into video chunks.
-        Create video files and database records.
-        Suppoused to be run as a background task.
-
-        Parameters:
-        - source (schemas.Source) - source to process
-        """
-        save_dir = settings.paths.chunks_dir / str(source.id)
-        save_dir.mkdir(parents=True, exist_ok=True)
-        fps, duration = settings.video.chunk_fps, settings.video.chunk_duration
-        frame_size = (settings.video.frame_width, settings.video.frame_height)
-        number_of_frames = int(fps * duration)
-        chunks_count = len(list(save_dir.glob('*.mp4')))
-        status, status_msg = SourceStatus.FINISHED, 'Reached the end'
-        try:
-            async with open_source(source.url) as cap:
-                while cap.has_next():
-                    chunk_path = save_dir / f'{chunks_count}.mp4'
-                    async with ChunkWriter(source.id, chunk_path) as writer:
-                        for _ in range(number_of_frames):
-                            if not cap.has_next():
-                                break
-                            read_time = time.time()
-                            frame = await cap.read()
-                            frame = cv2.resize(frame, frame_size)
-                            if settings.video.draw_timestamp:
-                                frame = add_timestamp(frame, read_time)
-                            writer.write(frame)
-                            delay = 1 / fps - (time.time() - read_time)
-                            if delay > 0:
-                                await asyncio.sleep(delay)
-                        chunks_count += 1
-        except asyncio.CancelledError:
-            # Source processing was cancelled by unknown reason,
-            # so status should be updated from outside
-            self._tasks.pop(source.id)
-            return
-        except Exception as e:
-            status = SourceStatus.ERROR
-            status_msg = str(e)
-        # Source processing either finished or failed, so status should be
-        # updated from inside
-        async with async_session_factory() as session:
-            await crud.sources.update_status(session, source.id,
-                                             status, status_msg)
-        self._tasks.pop(source.id)
+    def clean_finished(self):
+        """Remove threads of finished sources"""
+        for source_id, thread in self._threads.copy().items():
+            if not thread.is_alive():
+                self._threads[source_id].join()
+                del self._threads[source_id]
+                del self._stop_events[source_id]
 
     def add(self, source: Source):
         """
@@ -355,36 +308,42 @@ class SourceProcessor:
         Parameters:
         - source (schemas.Source) - source to process
         """
-        if source.id not in self._tasks:
-            self._tasks[source.id] = asyncio.create_task(self._process(source))
+        self.clean_finished()
+        if source.id not in self._threads:
+            stop_event = Event()
+            thread = Thread(
+                target=task_process_source,
+                args=(source, stop_event, self._shutdown_event,),
+                daemon=True,
+            )
+            thread.start()
+            self._threads[source.id] = thread
+            self._stop_events[source.id] = stop_event
 
-    async def remove(self, source_id: int):
+    def remove(self, source_id: int):
         """
         Stop processing source.
+        If source is not being processed, do nothing.
 
         Parameters:
         - source_id (int) - id of source to stop processing
         """
-        if source_id in self._tasks:
-            task = self._tasks[source_id]
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+        self.clean_finished()
+        if source_id in self._threads:
+            self._stop_events[source_id].set()
 
-    async def startup(self):
+    def startup(self):
         """Start processing all active sources."""
-        async with async_session_factory() as session:
-            sources = await crud.sources.read_all(session,
-                                                  status=SourceStatus.ACTIVE)
+        self._shutdown_event.clear()
+        sources = api.get_all_sources(SourceStatus.ACTIVE)
         for source in sources:
             self.add(source)
-        self.is_running = True
 
-    async def shutdown(self):
+    def shutdown(self):
         """Stop processing all sources."""
-        for task in self._tasks.values():
-            task.cancel()
-        await asyncio.gather(*self._tasks.values())
-        self.is_running = False
+        self._shutdown_event.set()
+        for source_id in list(self._threads.keys()):
+            self.remove(source_id)
+        while self._threads:
+            self.clean_finished()
+            time.sleep(0.1)
