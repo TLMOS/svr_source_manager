@@ -7,18 +7,17 @@ from pydantic import (
     validator,
     ValidationError,
     PostgresDsn,
-    HttpUrl,
     PositiveInt,
     PositiveFloat,
 )
 
 
 class ApiSettings(BaseModel):
-    url: HttpUrl = 'http://api:8080'
+    url: str = 'http://api:8080'
 
 
 class SourceProcessorSettings(BaseModel):
-    url: HttpUrl = 'http://source_processor:8080'
+    url: str = 'http://source_processor:8080'
 
     capture_timeout: PositiveFloat = 1
     capture_max_retries: PositiveInt = 3
@@ -26,7 +25,7 @@ class SourceProcessorSettings(BaseModel):
 
 
 class SearchEngineSettings(BaseModel):
-    url: HttpUrl = 'http://search_engine:8080'
+    url: str = 'http://search_engine:8080'
 
 
 class PostgresSettings(BaseModel):

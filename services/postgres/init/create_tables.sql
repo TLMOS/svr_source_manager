@@ -24,3 +24,6 @@ ON source using btree (id, status_code);
 
 CREATE INDEX CONCURRENTLY "index_video_chunk_source_id"
 ON video_chunk using btree (source_id);
+
+INSERT INTO source ("name", "url", status_code, status_msg)
+VALUES ('test', 'https://archive.org/download/Rick_Astley_Never_Gonna_Give_You_Up/Rick_Astley_Never_Gonna_Give_You_Up.mp4', 1, '');
