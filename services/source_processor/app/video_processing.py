@@ -18,7 +18,6 @@ import cv2
 from common.config import settings
 from common.constants import SourceStatus
 from common.schemas import Source, VideoChunkCreate
-from common.clients.http import concat_url
 from app.clients import api
 
 
@@ -223,11 +222,8 @@ class ChunkWriter(VideoWriter):
                 end_time=end_time,
                 frame_count=self.frame_count,
             )
-            # Write chunk to database
+            # Write chunk to database and publish to RabbitMQ
             db_chunk = api.create_video_chunk(db_chunk)
-            # Publish chunk to rabbitmq
-            url = concat_url(settings.source_processor.url, '/publish')
-            requests.post(url, json=db_chunk.dict())
 
 
 def task_process_source(source: Source, stop_event: Event,

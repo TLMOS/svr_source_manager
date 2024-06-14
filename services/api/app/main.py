@@ -8,7 +8,7 @@ from common.credentials import (
 )
 from app.routers.sources import router as sources_router
 from app.routers.videos import router as videos_router
-from app.clients import source_processor
+from app.clients import source_processor, rabbitmq, search_engine
 from app.security import secrets, auth
 
 
@@ -45,13 +45,19 @@ app = FastAPI(
 
 
 @app.on_event('startup')
-async def startup():
+async def on_startup():
+    if credentials_loader.is_registered():
+        rmq_credentials = search_engine.get_rabbitmq_credentials()
+        rabbitmq.session.set_connection_params(**rmq_credentials.dict())
+        rabbitmq.session.open()
     source_processor.session.open()
 
 
 @app.on_event('shutdown')
-async def shutdown():
+async def on_shutdown():
     await source_processor.session.close()
+    if rabbitmq.session.is_opened:
+        rabbitmq.session.close()
 
 
 app.include_router(sources_router)

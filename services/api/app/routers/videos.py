@@ -1,14 +1,16 @@
-from pathlib import Path
+import asyncio
 import tempfile
+from pathlib import Path
 
+import cv2
 from fastapi import APIRouter, HTTPException, Security
 from fastapi.responses import Response, FileResponse
-import cv2
 
 from common import schemas
 from common.config import settings
 from common.utils.videos import open_video_capture, open_video_writer
 from common.database import crud
+from app.clients.rabbitmq import publish_video_chunk
 from app.security import auth
 from app.dependencies import DatabaseDepends
 
@@ -29,7 +31,7 @@ router = APIRouter(
 async def create_chunk(db: DatabaseDepends,
                        chunk: schemas.VideoChunkCreate):
     """
-    Create video chunk record.
+    Create video chunk record and publish to RabbitMQ.
 
     Parameters:
     - chunk: video chunk create schema.
@@ -43,7 +45,9 @@ async def create_chunk(db: DatabaseDepends,
     db_source = await crud.sources.read(db, chunk.source_id)
     if db_source is None:
         raise HTTPException(status_code=404, detail='Source not found')
-    return await crud.video_chunks.create(db, chunk)
+    db_chunk = await crud.video_chunks.create(db, chunk)
+    asyncio.create_task(publish_video_chunk(db_chunk))
+    return db_chunk
 
 
 @router.get(

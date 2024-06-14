@@ -9,7 +9,7 @@ from common import schemas
 session = Session()
 
 
-def publish_video_chunk(chunk: schemas.VideoChunk):
+async def publish_video_chunk(chunk: schemas.VideoChunk):
     """
     Publish video chunk to RabbitMQ processing queue.
 
